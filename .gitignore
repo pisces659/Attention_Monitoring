@@ -1,0 +1,23 @@
+# Node / frontend build artifacts
+node_modules/
+.next/
+out/
+build/
+.vercel
+
+# Environment
+.env*
+
+# OS
+.DS_Store
+
+# Incomplete local scaffold (use attention-web1 instead)
+attention-web/
+
+# Accidental root-level npm install (Python pipeline is separate)
+/package.json
+/package-lock.json
+
+# Python bytecode (existing tracked files remain; ignore new artifacts)
+__pycache__/
+*.py[cod]
