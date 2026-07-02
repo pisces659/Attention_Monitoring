@@ -88,9 +88,14 @@ When Python AI is integrated later, only `UploadService` and a new `ProcessingSe
 
 ## Deployment
 
-- **Backend**: Railway — `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-- **Database**: Supabase PostgreSQL — run `schema.sql`
+See **[DEPLOYMENT.md](../DEPLOYMENT.md)** for the full free-tier guide (Supabase + Render + Vercel).
+
+Quick summary:
+
+- **Backend**: Render — `uvicorn app.main:app --host 0.0.0.0 --port $PORT` (see [`render.yaml`](../render.yaml))
+- **Database**: Supabase PostgreSQL — run [`schema.sql`](schema.sql)
 - **Storage**: Supabase Storage buckets (`raw-videos`, `annotated-videos`, `session-csv`)
+- **Frontend**: Vercel — root directory `attention-web1`
 
 ## Frontend integration
 

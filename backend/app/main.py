@@ -17,9 +17,13 @@ settings = get_settings()
 async def lifespan(_: FastAPI):
     uploads = Path(__file__).resolve().parents[1] / "uploads"
     uploads.mkdir(exist_ok=True)
-    from app.services.db_migrations import run_dev_migrations
+    try:
+        from app.services.db_migrations import run_dev_migrations
 
-    await run_dev_migrations()
+        await run_dev_migrations()
+    except Exception:
+        if settings.app_env == "development":
+            raise
     yield
 
 

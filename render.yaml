@@ -1,0 +1,31 @@
+# Render Blueprint — NeuroLens FastAPI backend
+# Docs: https://render.com/docs/blueprint-spec
+#
+# After connecting this repo in Render, set secret env vars in the dashboard:
+# DATABASE_URL, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_JWT_SECRET, CORS_ORIGINS
+
+services:
+  - type: web
+    name: neurolens-api
+    runtime: python
+    region: singapore
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: API_PREFIX
+        value: /api/v1
+      - key: DEV_AUTH_BYPASS
+        value: "true"
+      - key: STORAGE_BUCKET_RAW
+        value: raw-videos
+      - key: STORAGE_BUCKET_ANNOTATED
+        value: annotated-videos
+      - key: STORAGE_BUCKET_CSV
+        value: session-csv
+      - key: PYTHON_VERSION
+        value: "3.12.8"

@@ -10,8 +10,14 @@ from app.services.display_ids import allocate_patient_display_id, allocate_sessi
 
 
 async def run_dev_migrations() -> None:
-    async with engine.begin() as conn:
-        await conn.run_sync(_ensure_session_display_id_column)
+    from app.config import get_settings
+
+    settings = get_settings()
+    is_sqlite = settings.database_url.startswith("sqlite")
+
+    if is_sqlite:
+        async with engine.begin() as conn:
+            await conn.run_sync(_ensure_session_display_id_column)
 
     async with SessionLocal() as db:
         await _backfill_missing_display_ids(db)
