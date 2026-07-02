@@ -1,64 +1,41 @@
-import MetricCard from "@/components/dashboard/MetricCard";
-import PageHeader from "@/components/dashboard/PageHeader";
-import PerformanceOverview from "@/components/dashboard/PerformanceOverview";
-import RecentPatientsPanel from "@/components/dashboard/RecentPatientsPanel";
-import RecentSessionsPanel from "@/components/dashboard/RecentSessionsPanel";
-import TrendChart from "@/components/charts/TrendChart";
-import { currentClinician } from "@/mock";
-import { getDashboardSummary } from "@/services";
+import AnalyticsFooterRow from "@/components/dashboard/AnalyticsFooterRow";
+import AttentionOverTimeChart from "@/components/dashboard/AttentionOverTimeChart";
+import LatestSessionPanel from "@/components/dashboard/LatestSessionPanel";
+import PatientTimeHistoryHeader from "@/components/dashboard/PatientTimeHistoryHeader";
+import SessionHistoryTable from "@/components/dashboard/SessionHistoryTable";
+import SummaryMetricCards from "@/components/dashboard/SummaryMetricCards";
+import { getPatientTimeHistoryDashboard } from "@/services/patient-dashboard-service";
 
-export default function DashboardPage() {
-  const summary = getDashboardSummary();
+export const dynamic = "force-dynamic";
+
+interface DashboardPageProps {
+  searchParams: Promise<{ patientId?: string }>;
+}
+
+export default async function DashboardPage({ searchParams }: DashboardPageProps) {
+  const { patientId } = await searchParams;
+  const dashboard = await getPatientTimeHistoryDashboard(patientId);
 
   return (
-    <div className="space-y-8">
-      <PageHeader
-        title="Dashboard"
-        description={`Welcome back, ${currentClinician.name}. Here is your clinical overview for today.`}
+    <div className="space-y-6">
+      <PatientTimeHistoryHeader
+        patient={dashboard.patient}
+        dateRangeLabel={dashboard.dateRangeLabel}
       />
 
-      <section
-        aria-label="Key metrics"
-        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6"
-      >
-        {summary.metrics.map((metric) => (
-          <MetricCard key={metric.id} metric={metric} />
-        ))}
-      </section>
+      <SummaryMetricCards metrics={dashboard.summaryMetrics} />
 
       <section
-        aria-label="Trend charts"
-        className="grid gap-6 xl:grid-cols-2"
+        aria-label="Trends and session history"
+        className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]"
       >
-        <TrendChart
-          title="Attention Trend"
-          description="Focused attention percentage derived from sample-session.csv."
-          data={summary.attentionTrend}
-          color="#2563EB"
-          chartId="attention"
-        />
-        <TrendChart
-          title="Speech Accuracy"
-          description="Speech accuracy across recent completed sessions."
-          data={summary.speechTrend}
-          color="#7C3AED"
-          chartId="speech"
-        />
+        <AttentionOverTimeChart data={dashboard.attentionOverTime} />
+        <SessionHistoryTable sessions={dashboard.sessionHistory} />
       </section>
 
-      <section
-        aria-label="Performance and recent activity"
-        className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]"
-      >
-        <div className="space-y-6">
-          <PerformanceOverview
-            attentionAverage={summary.weeklyAttentionAverage}
-            speechAverage={summary.weeklySpeechAverage}
-          />
-          <RecentPatientsPanel patients={summary.recentPatients} />
-        </div>
-        <RecentSessionsPanel sessions={summary.recentSessions} />
-      </section>
+      <LatestSessionPanel session={dashboard.latestSession} />
+
+      <AnalyticsFooterRow analytics={dashboard.analyticsFooter} />
     </div>
   );
 }

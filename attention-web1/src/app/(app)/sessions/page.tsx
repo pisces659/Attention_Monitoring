@@ -11,10 +11,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { getAllSessions, getReportBySessionId } from "@/services";
+import { getAllSessions, getReports } from "@/services";
 
-export default function SessionsPage() {
-  const sessions = getAllSessions();
+export default async function SessionsPage() {
+  const sessions = await getAllSessions();
+  const reports = await getReports();
+  const reportBySessionId = new Map(
+    reports.map((report) => [report.sessionId, report.id])
+  );
 
   return (
     <div className="space-y-8">
@@ -59,7 +63,9 @@ export default function SessionsPage() {
                     key={session.id}
                     className="border-b border-border/60 last:border-b-0 hover:bg-muted/30"
                   >
-                    <td className="px-6 py-4 font-medium">{session.id}</td>
+                    <td className="px-6 py-4 font-medium">
+                      {session.displayId || session.id}
+                    </td>
                     <td className="px-4 py-4">{session.patientName}</td>
                     <td className="px-4 py-4 text-muted-foreground">
                       {session.dateLabel}
@@ -90,10 +96,17 @@ export default function SessionsPage() {
                         </Link>
                       ) : session.status === "completed" ? (
                         <Link
-                          href={`/reports/${getReportBySessionId(session.id)?.id ?? "rep-001"}`}
+                          href={`/reports/${reportBySessionId.get(session.id) ?? ""}`}
                           className="text-[#2563EB] hover:underline"
                         >
                           View report
+                        </Link>
+                      ) : session.status === "scheduled" ? (
+                        <Link
+                          href={`/sessions/${session.id}/upload`}
+                          className="text-[#2563EB] hover:underline"
+                        >
+                          Upload results
                         </Link>
                       ) : (
                         <span className="text-muted-foreground">—</span>

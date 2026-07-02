@@ -1,3 +1,5 @@
+import { apiFetch } from "@/lib/api-client";
+import { API_ENDPOINTS, USE_API } from "@/lib/api-config";
 import {
   analyticsSnapshot,
   sampleAttentionTimeline,
@@ -6,7 +8,24 @@ import {
 import { sessions } from "@/mock";
 import type { SessionComparison } from "@/types";
 
-export function compareSessions(
+export async function compareSessions(
+  sessionIdA: string,
+  sessionIdB: string
+): Promise<SessionComparison | null> {
+  if (!USE_API) {
+    return compareSessionsMock(sessionIdA, sessionIdB);
+  }
+
+  try {
+    return await apiFetch<SessionComparison>(
+      API_ENDPOINTS.compareSessions(sessionIdA, sessionIdB)
+    );
+  } catch {
+    return null;
+  }
+}
+
+function compareSessionsMock(
   sessionIdA: string,
   sessionIdB: string
 ): SessionComparison | null {

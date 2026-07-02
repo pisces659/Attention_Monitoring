@@ -12,8 +12,8 @@ import {
 import { formatPercent } from "@/lib/format";
 import { getReports } from "@/services";
 
-export default function ReportsPage() {
-  const reports = getReports();
+export default async function ReportsPage() {
+  const reports = await getReports();
 
   return (
     <div className="space-y-8">

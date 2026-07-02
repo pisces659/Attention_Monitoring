@@ -7,7 +7,8 @@ import { Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AUTH_COOKIE, DEMO_CREDENTIALS, isValidCredentials } from "@/lib/auth";
+import { login } from "@/services/auth-service";
+import { DEMO_CREDENTIALS } from "@/lib/auth";
 import { appName, appTagline } from "@/lib/navigation";
 
 export default function LoginForm() {
@@ -16,15 +17,15 @@ export default function LoginForm() {
   const [password, setPassword] = useState(DEMO_CREDENTIALS.password);
   const [error, setError] = useState("");
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!isValidCredentials(email, password)) {
+    const success = await login(email, password);
+    if (!success) {
       setError("Invalid credentials. Use the demo account shown below.");
       return;
     }
 
-    document.cookie = `${AUTH_COOKIE}=true; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
     router.push("/dashboard");
     router.refresh();
   }

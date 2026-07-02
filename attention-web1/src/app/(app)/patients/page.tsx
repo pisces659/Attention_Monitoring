@@ -1,9 +1,10 @@
 import PageHeader from "@/components/dashboard/PageHeader";
+import AddPatientCard from "@/components/patients/AddPatientCard";
 import PatientCard from "@/components/patients/PatientCard";
 import { getPatients } from "@/services";
 
-export default function PatientsPage() {
-  const patients = getPatients();
+export default async function PatientsPage() {
+  const patients = await getPatients();
 
   return (
     <div className="space-y-8">
@@ -11,6 +12,8 @@ export default function PatientsPage() {
         title="Patients"
         description="Manage pediatric cognitive therapy patients, review diagnoses, and open detailed session histories."
       />
+
+      <AddPatientCard />
 
       <section
         aria-label="Patient directory"

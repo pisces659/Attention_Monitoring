@@ -62,6 +62,6 @@ export const navigation: NavItem[] = [
   },
 ];
 
-export const appName = "NeuroLens AI";
-export const appTagline = "Cognitive Assessment Platform";
+export const appName = "Attention Monitoring System";
+export const appTagline = "Smart Assessment for Better Outcomes";
 export const appIcon = Brain;

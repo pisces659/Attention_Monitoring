@@ -4,6 +4,8 @@ export type SessionStatus =
   | "scheduled"
   | "processing";
 
+export type SessionKind = "pre_recorded" | "scheduled";
+
 export type AttentionLevel = "focused" | "moderate" | "distracted";
 
 export type Gender = "Male" | "Female" | "Non-binary";
@@ -19,8 +21,17 @@ export interface Clinician {
   email: string;
 }
 
+export interface Clinic {
+  id: string;
+  name: string;
+  address: string;
+  phone: string;
+  timezone: string;
+}
+
 export interface Patient {
   id: string;
+  displayId?: string;
   firstName: string;
   lastName: string;
   age: number;
@@ -39,7 +50,9 @@ export interface Patient {
 
 export interface Session {
   id: string;
+  displayId?: string;
   patientId: string;
+  patientDisplayId?: string;
   patientName: string;
   date: string;
   dateLabel: string;
@@ -47,18 +60,24 @@ export interface Session {
   attentionScore: number;
   speechScore: number;
   status: SessionStatus;
+  sessionKind?: SessionKind;
+  sessionAt?: string;
+  scheduledAt?: string | null;
   attentionLevel: AttentionLevel;
   blinkCount: number;
   doctorNotes: string;
   hasCsvOutput: boolean;
   videoFileName?: string;
   processedVideoFileName?: string;
+  rawVideoUrl?: string;
+  annotatedVideoUrl?: string;
   reportId?: string;
 }
 
 export interface Report {
   id: string;
   sessionId: string;
+  sessionDisplayId?: string;
   patientId: string;
   patientName: string;
   title: string;

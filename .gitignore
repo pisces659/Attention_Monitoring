@@ -21,3 +21,12 @@ attention-web/
 # Python bytecode (existing tracked files remain; ignore new artifacts)
 __pycache__/
 *.py[cod]
+
+# Backend local dev
+backend/.venv/
+backend/uploads/
+backend/neurolens.db
+backend/*.db
+
+# Editor
+.vscode/

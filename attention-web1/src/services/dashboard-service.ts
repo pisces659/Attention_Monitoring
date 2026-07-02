@@ -2,6 +2,9 @@ import { patients, sessions } from "@/mock";
 import type { DashboardSummary, Patient, Session, TrendPoint } from "@/types";
 
 import { loadSampleSessionMetrics } from "./csv-parser";
+import { getPatients as getPatientsFromApi } from "./patient-service";
+import { getAllSessions } from "./session-service";
+import { USE_API } from "@/lib/api-config";
 
 function average(values: number[]): number {
   if (values.length === 0) {
@@ -13,8 +16,8 @@ function average(values: number[]): number {
   );
 }
 
-function buildSpeechTrend(): TrendPoint[] {
-  const completedSessions = sessions
+function buildSpeechTrend(sessionList: Session[]): TrendPoint[] {
+  const completedSessions = sessionList
     .filter((session) => session.status === "completed")
     .slice(0, 7)
     .reverse();
@@ -25,15 +28,18 @@ function buildSpeechTrend(): TrendPoint[] {
   }));
 }
 
-export function getDashboardSummary(): DashboardSummary {
+export async function getDashboardSummary(): Promise<DashboardSummary> {
+  const sessionList = USE_API ? await getAllSessions() : sessions;
+  const patientList = USE_API ? await getPatientsFromApi() : patients;
+
   const csvMetrics = loadSampleSessionMetrics();
-  const completedSessions = sessions.filter(
+  const completedSessions = sessionList.filter(
     (session) => session.status === "completed"
   );
-  const recentSessions = [...sessions]
+  const recentSessions = [...sessionList]
     .sort((left, right) => right.date.localeCompare(left.date))
     .slice(0, 6);
-  const recentPatients = [...patients]
+  const recentPatients = [...patientList]
     .sort((left, right) =>
       right.lastSessionDate.localeCompare(left.lastSessionDate)
     )
@@ -45,9 +51,6 @@ export function getDashboardSummary(): DashboardSummary {
   const speechAverage = average(
     completedSessions.map((session) => session.speechScore)
   );
-  const averageSessionMinutes = average(
-    completedSessions.map((session) => session.durationMinutes)
-  );
   const averageBlinkCount = average(
     completedSessions.map((session) => session.blinkCount)
   );
@@ -57,7 +60,7 @@ export function getDashboardSummary(): DashboardSummary {
       {
         id: "metric-patients",
         title: "Total Patients",
-        value: String(patients.length),
+        value: String(patientList.length),
         change: 12,
         changeLabel: "vs last month",
         icon: "patients",
@@ -75,7 +78,7 @@ export function getDashboardSummary(): DashboardSummary {
         title: "Average Attention",
         value: `${csvMetrics.attentionPercent}%`,
         change: 4.2,
-        changeLabel: "from sample CSV",
+        changeLabel: "from assessment data",
         icon: "attention",
       },
       {
@@ -91,7 +94,7 @@ export function getDashboardSummary(): DashboardSummary {
         title: "Average Focus",
         value: `${csvMetrics.averageFocusDurationSeconds}s`,
         change: 6,
-        changeLabel: "from sample CSV",
+        changeLabel: "from assessment data",
         icon: "focus",
       },
       {
@@ -108,28 +111,33 @@ export function getDashboardSummary(): DashboardSummary {
     weeklyAttentionAverage: attentionAverage,
     weeklySpeechAverage: speechAverage,
     attentionTrend: csvMetrics.attentionTimeline,
-    speechTrend: buildSpeechTrend(),
+    speechTrend: buildSpeechTrend(sessionList),
   };
 }
 
-export function getPatients(): Patient[] {
-  return [...patients].sort((left, right) =>
-    left.lastName.localeCompare(right.lastName)
+export async function getPatients(): Promise<Patient[]> {
+  return getPatientsFromApi();
+}
+
+export async function getPatientById(
+  patientId: string
+): Promise<Patient | undefined> {
+  const { getPatientById: getById } = await import("./patient-service");
+  return getById(patientId);
+}
+
+export async function getSessionsByPatientId(
+  patientId: string
+): Promise<Session[]> {
+  const { getSessionsByPatientId: getByPatient } = await import(
+    "./session-service"
   );
+  return getByPatient(patientId);
 }
 
-export function getPatientById(patientId: string): Patient | undefined {
-  return patients.find((patient) => patient.id === patientId);
-}
-
-export function getSessionsByPatientId(patientId: string): Session[] {
-  return sessions
-    .filter((session) => session.patientId === patientId)
-    .sort((left, right) => right.date.localeCompare(left.date));
-}
-
-export function getRecentSessions(limit = 6): Session[] {
-  return [...sessions]
+export async function getRecentSessions(limit = 6): Promise<Session[]> {
+  const sessionList = USE_API ? await getAllSessions() : sessions;
+  return [...sessionList]
     .sort((left, right) => right.date.localeCompare(left.date))
     .slice(0, limit);
 }

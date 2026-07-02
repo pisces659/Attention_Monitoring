@@ -29,7 +29,9 @@ export default function PatientCard({ patient }: PatientCardProps) {
               <h3 className="font-heading text-lg font-semibold text-foreground">
                 {patient.firstName} {patient.lastName}
               </h3>
-              <p className="text-sm text-muted-foreground">{patient.id}</p>
+              <p className="text-sm text-muted-foreground">
+                {patient.displayId || "—"}
+              </p>
             </div>
             <ChevronRight className="size-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-[#2563EB]" />
           </div>

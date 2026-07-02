@@ -82,7 +82,7 @@ export default function RecentSessionsPanel({
                         {session.patientName}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {session.patientId}
+                        {session.patientDisplayId || session.patientId}
                       </p>
                     </div>
                   </td>

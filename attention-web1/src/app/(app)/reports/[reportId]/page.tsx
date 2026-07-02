@@ -6,7 +6,7 @@ import TrendChart from "@/components/charts/TrendChart";
 import DonutChart from "@/components/charts/DonutChart";
 import BarChartCard from "@/components/charts/BarChartCard";
 import StatGrid from "@/components/common/StatGrid";
-import VideoPlaceholder from "@/components/common/VideoPlaceholder";
+import SessionVideoPlayer from "@/components/common/SessionVideoPlayer";
 import PageHeader from "@/components/dashboard/PageHeader";
 import PatientProfileHeader from "@/components/patients/PatientProfileHeader";
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,7 @@ export default async function ReportDetailPage({
   params,
 }: ReportDetailPageProps) {
   const { reportId } = await params;
-  const data = getSessionReport(reportId);
+  const data = await getSessionReport(reportId);
 
   if (!data) {
     notFound();
@@ -46,6 +46,9 @@ export default async function ReportDetailPage({
     focusDistribution,
     recommendations,
   } = data;
+  const speechAvailable = Boolean(
+    (speechMetrics as { available?: boolean }).available
+  );
 
   return (
     <div className="space-y-8">
@@ -64,14 +67,16 @@ export default async function ReportDetailPage({
       <PatientProfileHeader patient={patient} />
 
       <section className="grid gap-6 xl:grid-cols-2">
-        <VideoPlaceholder
+        <SessionVideoPlayer
+          src={data.session.rawVideoUrl}
           title="Original session video"
-          subtitle="therapy-session.mp4"
+          fileName={data.session.videoFileName}
         />
-        <VideoPlaceholder
+        <SessionVideoPlayer
+          src={data.session.annotatedVideoUrl}
+          fallbackSrc={data.session.rawVideoUrl}
           title="Annotated AI output"
-          subtitle="processed-session-annotated.mp4"
-          variant="annotated"
+          fileName={data.session.processedVideoFileName}
         />
       </section>
 
@@ -81,10 +86,14 @@ export default async function ReportDetailPage({
             label: "Overall attention",
             value: formatPercent(attentionMetrics.overallAttentionPercent),
           },
-          {
-            label: "Speech score",
-            value: formatPercent(speechMetrics.speechScore),
-          },
+          ...(speechAvailable
+            ? [
+                {
+                  label: "Speech score",
+                  value: formatPercent(speechMetrics.speechScore ?? 0),
+                },
+              ]
+            : []),
           {
             label: "Blink count",
             value: attentionMetrics.blinkCount,
@@ -114,14 +123,28 @@ export default async function ReportDetailPage({
         <Card className="border-0 shadow-sm ring-1 ring-border/60">
           <CardHeader>
             <CardTitle>Speech summary</CardTitle>
+            {!speechAvailable ? (
+              <CardDescription>
+                Speech metrics are not present in the uploaded CSV.
+              </CardDescription>
+            ) : null}
           </CardHeader>
           <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
-            <Metric label="Pronunciation accuracy" value={formatPercent(speechMetrics.pronunciationAccuracy)} />
-            <Metric label="Completion" value={formatPercent(speechMetrics.completionPercent)} />
-            <Metric label="Correct words" value={speechMetrics.correctCount} />
-            <Metric label="Partial words" value={speechMetrics.partialCount} />
-            <Metric label="Incorrect words" value={speechMetrics.incorrectCount} />
-            <Metric label="Speech score" value={formatPercent(speechMetrics.speechScore)} />
+            {speechAvailable ? (
+              <>
+                <Metric label="Pronunciation accuracy" value={formatPercent(speechMetrics.pronunciationAccuracy ?? 0)} />
+                <Metric label="Completion" value={formatPercent(speechMetrics.completionPercent ?? 0)} />
+                <Metric label="Correct words" value={speechMetrics.correctCount ?? 0} />
+                <Metric label="Partial words" value={speechMetrics.partialCount ?? 0} />
+                <Metric label="Incorrect words" value={speechMetrics.incorrectCount ?? 0} />
+                <Metric label="Speech score" value={formatPercent(speechMetrics.speechScore ?? 0)} />
+              </>
+            ) : (
+              <p className="text-muted-foreground sm:col-span-2">
+                Upload a CSV that includes speech recognition fields to populate
+                this section.
+              </p>
+            )}
           </CardContent>
         </Card>
       </section>
@@ -157,11 +180,12 @@ export default async function ReportDetailPage({
         />
       </section>
 
+      {speechAvailable && speechWords.length > 0 ? (
       <Card className="border-0 shadow-sm ring-1 ring-border/60">
         <CardHeader>
           <CardTitle>Speech word analysis</CardTitle>
           <CardDescription>
-            Mock pronunciation results for therapy vocabulary tasks.
+            Word-level pronunciation results from the session export.
           </CardDescription>
         </CardHeader>
         <CardContent className="px-0 pb-2">
@@ -193,6 +217,7 @@ export default async function ReportDetailPage({
           </div>
         </CardContent>
       </Card>
+      ) : null}
 
       <Card className="border-0 shadow-sm ring-1 ring-border/60">
         <CardHeader>

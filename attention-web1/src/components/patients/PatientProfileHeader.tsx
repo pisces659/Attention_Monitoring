@@ -21,7 +21,9 @@ export default function PatientProfileHeader({
 
         <div className="flex-1 space-y-3">
           <div>
-            <p className="text-sm font-medium text-[#2563EB]">{patient.id}</p>
+            <p className="text-sm font-medium text-[#2563EB]">
+              {patient.displayId || "—"}
+            </p>
             <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground">
               {getPatientFullName(patient)}
             </h1>

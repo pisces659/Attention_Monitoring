@@ -30,15 +30,15 @@ export default async function PatientProfilePage({
   params,
 }: PatientProfilePageProps) {
   const { patientId } = await params;
-  const patient = getPatientById(patientId);
+  const patient = await getPatientById(patientId);
 
   if (!patient) {
     notFound();
   }
 
-  const sessions = getSessionsByPatientId(patientId);
-  const reports = getReportsByPatientId(patientId);
-  const analytics = getAnalyticsSummary();
+  const sessions = await getSessionsByPatientId(patientId);
+  const reports = await getReportsByPatientId(patientId);
+  const analytics = await getAnalyticsSummary();
 
   return (
     <div className="space-y-6">
@@ -48,6 +48,17 @@ export default async function PatientProfilePage({
           Back to patients
         </Link>
       </Button>
+
+      <div className="flex flex-wrap gap-2">
+        <Button asChild className="bg-[#0052CC] hover:bg-[#0047B3]">
+          <Link href={`/dashboard?patientId=${patientId}`}>
+            Patient Time History
+          </Link>
+        </Button>
+        <Button variant="outline" asChild>
+          <Link href={`/sessions/new?patientId=${patientId}`}>New session</Link>
+        </Button>
+      </div>
 
       <PatientProfileHeader patient={patient} />
 

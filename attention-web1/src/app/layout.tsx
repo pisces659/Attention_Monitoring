@@ -19,11 +19,11 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "NeuroLens AI | Cognitive Assessment Platform",
-    template: "%s | NeuroLens AI",
+    default: "Attention Monitoring System | Smart Assessment for Better Outcomes",
+    template: "%s | Attention Monitoring System",
   },
   description:
-    "AI-powered cognitive assessment platform for monitoring patient attention, gaze, and speech during therapy sessions.",
+    "Smart assessment platform for monitoring patient attention, gaze, and speech during therapy sessions.",
 };
 
 export default function RootLayout({

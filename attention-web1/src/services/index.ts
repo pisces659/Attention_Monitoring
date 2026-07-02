@@ -35,3 +35,17 @@ export {
   getSessionById,
   getSessionsByPatientId as getPatientSessions,
 } from "./session-service";
+
+export { getPatientTimeHistoryDashboard, getSidebarPatients } from "./patient-dashboard-service";
+
+export { getPatients as getPatientsList, getPatientById as getPatientByIdDirect } from "./patient-service";
+
+export { login, logout } from "./auth-service";
+export { getCurrentClinician } from "./auth-service-server";
+
+export {
+  createAndUploadSession,
+  createSession,
+  fetchPatientOptions,
+  uploadSessionFiles,
+} from "./session-upload-service";

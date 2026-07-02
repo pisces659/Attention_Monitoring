@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { CheckCircle2, LoaderCircle } from "lucide-react";
 
@@ -15,6 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { USE_API } from "@/lib/api-config";
 
 const steps = [
   "Uploading video",
@@ -25,9 +27,32 @@ const steps = [
 ];
 
 export default function ProcessingPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-3xl py-16 text-center text-muted-foreground">
+          Loading processing status...
+        </div>
+      }
+    >
+      <ProcessingContent />
+    </Suspense>
+  );
+}
+
+function ProcessingContent() {
+  const searchParams = useSearchParams();
+  const reportId = searchParams.get("reportId");
+  const patientId = searchParams.get("patientId");
   const [progress, setProgress] = useState(8);
   const [stepIndex, setStepIndex] = useState(0);
   const [complete, setComplete] = useState(false);
+
+  const reportHref =
+    USE_API && reportId ? `/reports/${reportId}` : "/reports/rep-001";
+  const dashboardHref = patientId
+    ? `/dashboard?patientId=${encodeURIComponent(patientId)}`
+    : "/dashboard";
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -56,7 +81,9 @@ export default function ProcessingPage() {
         <CardHeader>
           <CardTitle>AI processing pipeline</CardTitle>
           <CardDescription>
-            This simulates the future FastAPI + Python engine integration.
+            {USE_API
+              ? "Files uploaded. Assessment JSON has been generated from your CSV."
+              : "This simulates the future FastAPI + Python engine integration."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -91,9 +118,12 @@ export default function ProcessingPage() {
           </div>
 
           {complete ? (
-            <div className="flex gap-3 pt-2">
+            <div className="flex flex-wrap gap-3 pt-2">
               <Button asChild>
-                <Link href="/reports/rep-001">View report</Link>
+                <Link href={reportHref}>View report</Link>
+              </Button>
+              <Button variant="outline" asChild>
+                <Link href={dashboardHref}>View dashboard</Link>
               </Button>
               <Button variant="outline" asChild>
                 <Link href="/sessions">Back to sessions</Link>

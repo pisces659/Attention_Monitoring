@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import {
   Card,
   CardContent,
@@ -42,6 +44,7 @@ export default function PatientSessionList({
                   <th className="px-4 py-3 font-medium">Speech</th>
                   <th className="px-4 py-3 font-medium">Blinks</th>
                   <th className="px-6 py-3 font-medium">Status</th>
+                  <th className="px-6 py-3 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -51,7 +54,7 @@ export default function PatientSessionList({
                     className="border-b border-border/60 last:border-b-0"
                   >
                     <td className="px-6 py-4 font-medium text-foreground">
-                      {session.id}
+                      {session.displayId || session.id}
                     </td>
                     <td className="px-4 py-4 text-muted-foreground">
                       {session.dateLabel}
@@ -72,6 +75,25 @@ export default function PatientSessionList({
                     </td>
                     <td className="px-6 py-4">
                       <SessionStatusBadge status={session.status} />
+                    </td>
+                    <td className="px-6 py-4">
+                      {session.status === "scheduled" ? (
+                        <Link
+                          href={`/sessions/${session.id}/upload`}
+                          className="text-[#2563EB] hover:underline"
+                        >
+                          Upload results
+                        </Link>
+                      ) : session.status === "completed" && session.reportId ? (
+                        <Link
+                          href={`/reports/${session.reportId}`}
+                          className="text-[#2563EB] hover:underline"
+                        >
+                          View report
+                        </Link>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </td>
                   </tr>
                 ))}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import TrendChart from "@/components/charts/TrendChart";
 import StatGrid from "@/components/common/StatGrid";
@@ -18,8 +18,11 @@ import { Select } from "@/components/ui/select";
 import { completedSessionOptions } from "@/mock/session-options";
 import { formatPercent } from "@/lib/format";
 import { compareSessions } from "@/services/compare-service";
+import { fetchCompletedSessionOptions } from "@/services/client-data-service";
+import type { SessionComparison } from "@/types";
 
 export default function ComparePage() {
+  const [sessionOptions, setSessionOptions] = useState(completedSessionOptions);
   const [sessionAId, setSessionAId] = useState(
     completedSessionOptions[0]?.id ?? ""
   );
@@ -27,10 +30,43 @@ export default function ComparePage() {
     completedSessionOptions[1]?.id ?? ""
   );
 
-  const comparison = useMemo(
-    () => compareSessions(sessionAId, sessionBId),
-    [sessionAId, sessionBId]
-  );
+  const [comparison, setComparison] = useState<SessionComparison | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetchCompletedSessionOptions()
+      .then((options) => {
+        if (!active || options.length === 0) {
+          return;
+        }
+        setSessionOptions(options);
+        setSessionAId(options[0]?.id ?? "");
+        setSessionBId(options[1]?.id ?? options[0]?.id ?? "");
+      })
+      .catch(() => {
+        // Keep mock options on failure.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!sessionAId || !sessionBId) {
+      return;
+    }
+
+    let active = true;
+    compareSessions(sessionAId, sessionBId).then((result) => {
+      if (active) {
+        setComparison(result);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [sessionAId, sessionBId]);
 
   return (
     <div className="space-y-8">
@@ -54,7 +90,7 @@ export default function ComparePage() {
               value={sessionAId}
               onChange={(event) => setSessionAId(event.target.value)}
             >
-              {completedSessionOptions.map((session) => (
+              {sessionOptions.map((session) => (
                 <option key={session.id} value={session.id}>
                   {session.label}
                 </option>
@@ -68,7 +104,7 @@ export default function ComparePage() {
               value={sessionBId}
               onChange={(event) => setSessionBId(event.target.value)}
             >
-              {completedSessionOptions.map((session) => (
+              {sessionOptions.map((session) => (
                 <option key={session.id} value={session.id}>
                   {session.label}
                 </option>

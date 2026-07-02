@@ -7,8 +7,8 @@ import StatGrid from "@/components/common/StatGrid";
 import { formatPercent } from "@/lib/format";
 import { getAnalyticsSummary } from "@/services";
 
-export default function AnalyticsPage() {
-  const analytics = getAnalyticsSummary();
+export default async function AnalyticsPage() {
+  const analytics = await getAnalyticsSummary();
 
   return (
     <div className="space-y-8">
