@@ -388,3 +388,29 @@ def build_assessment_json(frames: list[SessionFrame]) -> dict[str, Any]:
 def parse_csv_to_assessment(content: str) -> dict[str, Any]:
     frames = parse_session_csv(content)
     return build_assessment_json(frames)
+
+
+def apply_pipeline_speech_metrics(
+    assessment: dict[str, Any],
+    pipeline_summary: dict[str, Any],
+) -> dict[str, Any]:
+    """Merge speech results from the Ram pipeline into assessment JSON."""
+    speech = dict(assessment.get("speechMetrics", {}))
+    score = pipeline_summary.get("SpeechScore")
+    speech.update(
+        {
+            "available": True,
+            "speechScore": int(score) if score is not None else None,
+            "pronunciationAccuracy": int(score) if score is not None else None,
+            "completionPercent": 100 if pipeline_summary.get("SpeechFound") else 0,
+            "correctCount": 1 if pipeline_summary.get("SpeechFound") else 0,
+            "partialCount": 0 if pipeline_summary.get("SpeechFound") else 1,
+            "incorrectCount": 0,
+            "expectedWord": pipeline_summary.get("ExpectedWord"),
+            "detectedWord": pipeline_summary.get("RecognizedWord") or None,
+            "confidence": score,
+            "responseTime": pipeline_summary.get("ResponseTime"),
+        }
+    )
+    assessment["speechMetrics"] = speech
+    return assessment

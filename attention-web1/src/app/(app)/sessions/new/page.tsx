@@ -3,9 +3,12 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { CalendarClock, Upload, Video } from "lucide-react";
+import { CalendarClock, Video } from "lucide-react";
 
 import PageHeader from "@/components/dashboard/PageHeader";
+import SessionVideoInput, {
+  type VideoInputMode,
+} from "@/components/sessions/SessionVideoInput";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -31,45 +34,6 @@ import {
 } from "@/services/session-upload-service";
 import { cn } from "@/lib/utils";
 
-function FileUploadField({
-  id,
-  label,
-  hint,
-  accept,
-  fileName,
-  onFileChange,
-}: {
-  id: string;
-  label: string;
-  hint: string;
-  accept: string;
-  fileName: string;
-  onFileChange: (file: File | undefined) => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
-      <label
-        htmlFor={id}
-        className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-muted/20 px-6 py-8 text-center transition hover:bg-muted/40"
-      >
-        <Upload className="size-7 text-[#2563EB]" />
-        <p className="mt-3 font-medium text-foreground">
-          {fileName || "Click to upload"}
-        </p>
-        <p className="mt-1 text-sm text-muted-foreground">{hint}</p>
-        <Input
-          id={id}
-          type="file"
-          accept={accept}
-          className="hidden"
-          onChange={(event) => onFileChange(event.target.files?.[0])}
-        />
-      </label>
-    </div>
-  );
-}
-
 function NewSessionForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -80,9 +44,9 @@ function NewSessionForm() {
   const [sessionKind, setSessionKind] = useState<SessionKind>("pre_recorded");
   const [sessionAt, setSessionAt] = useState(toDatetimeLocalValue());
   const [notes, setNotes] = useState("");
-  const [rawVideo, setRawVideo] = useState<File | undefined>();
-  const [annotatedVideo, setAnnotatedVideo] = useState<File | undefined>();
-  const [csvFile, setCsvFile] = useState<File | undefined>();
+  const [videoMode, setVideoMode] = useState<VideoInputMode>("upload");
+  const [videoFile, setVideoFile] = useState<File | undefined>();
+  const [expectedWord, setExpectedWord] = useState("Elephant");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -120,8 +84,8 @@ function NewSessionForm() {
       return;
     }
 
-    if (sessionKind === "pre_recorded" && !csvFile) {
-      setError("Please upload the session CSV file (frame_data output).");
+    if (sessionKind === "pre_recorded" && !videoFile) {
+      setError("Please upload or record a therapy video.");
       return;
     }
 
@@ -136,16 +100,15 @@ function NewSessionForm() {
 
     try {
       if (sessionKind === "scheduled") {
-        const session = await createSession(payload);
+        await createSession(payload);
         router.push(`/sessions?patientId=${encodeURIComponent(patientId)}`);
         router.refresh();
         return;
       }
 
       const session = await createAndUploadSession(payload, {
-        rawVideo,
-        annotatedVideo,
-        csvFile: csvFile!,
+        video: videoFile!,
+        expectedWord,
       });
 
       const params = new URLSearchParams();
@@ -168,15 +131,15 @@ function NewSessionForm() {
     <div className="mx-auto max-w-3xl space-y-8">
       <PageHeader
         title="Create Session"
-        description="Upload a pre-recorded therapy session with a custom date, or schedule a future appointment."
+        description="Upload or record a therapy video. The AI pipeline generates annotated video and CSV metrics automatically."
       />
 
       <Card className="border-0 shadow-sm ring-1 ring-border/60">
         <CardHeader>
           <CardTitle>Session details</CardTitle>
           <CardDescription>
-            Choose whether this is a historical upload or a planned appointment.
-            The date you set is what appears on the dashboard and reports.
+            Choose whether this is a video session to analyze now or a future
+            appointment to upload later.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -194,10 +157,10 @@ function NewSessionForm() {
               >
                 <div className="flex items-center gap-2 font-medium">
                   <Video className="size-4 text-[#2563EB]" />
-                  Pre-recorded upload
+                  Video session
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Upload video and CSV from a session that already happened.
+                  Upload or record video for AI analysis.
                 </p>
               </button>
               <button
@@ -215,7 +178,7 @@ function NewSessionForm() {
                   Schedule appointment
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Mark a future session for reference. Upload results later.
+                  Mark a future session and upload video later.
                 </p>
               </button>
             </div>
@@ -255,34 +218,15 @@ function NewSessionForm() {
             </div>
 
             {sessionKind === "pre_recorded" ? (
-              <>
-                <FileUploadField
-                  id="raw-video"
-                  label="Raw therapy video"
-                  hint="MP4, MOV, or WEBM"
-                  accept="video/*"
-                  fileName={rawVideo?.name ?? ""}
-                  onFileChange={setRawVideo}
-                />
-
-                <FileUploadField
-                  id="annotated-video"
-                  label="Annotated video"
-                  hint="Video with face landmarks overlay"
-                  accept="video/*"
-                  fileName={annotatedVideo?.name ?? ""}
-                  onFileChange={setAnnotatedVideo}
-                />
-
-                <FileUploadField
-                  id="csv-file"
-                  label="Session CSV (required)"
-                  hint="frame_data.csv from the analysis pipeline"
-                  accept=".csv,text/csv"
-                  fileName={csvFile?.name ?? ""}
-                  onFileChange={setCsvFile}
-                />
-              </>
+              <SessionVideoInput
+                mode={videoMode}
+                onModeChange={setVideoMode}
+                videoFile={videoFile}
+                onVideoFileChange={setVideoFile}
+                expectedWord={expectedWord}
+                onExpectedWordChange={setExpectedWord}
+                disabled={submitting}
+              />
             ) : null}
 
             <div className="space-y-2">
@@ -307,7 +251,7 @@ function NewSessionForm() {
                   ? "Saving..."
                   : sessionKind === "scheduled"
                     ? "Schedule session"
-                    : "Upload & process"}
+                    : "Upload & analyze"}
               </Button>
               <Button variant="outline" asChild>
                 <Link href="/sessions">Cancel</Link>

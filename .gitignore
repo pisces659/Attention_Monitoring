@@ -25,6 +25,7 @@ __pycache__/
 # Backend local dev
 backend/.venv/
 backend/uploads/
+backend/uploads/processing/
 backend/neurolens.db
 backend/*.db
 

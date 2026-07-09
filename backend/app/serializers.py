@@ -27,7 +27,7 @@ def _map_session_status(status: SessionStatus) -> str:
         SessionStatus.UPLOADED: "in-progress",
         SessionStatus.PROCESSING: "processing",
         SessionStatus.COMPLETED: "completed",
-        SessionStatus.FAILED: "completed",
+        SessionStatus.FAILED: "failed",
     }
     return mapping.get(status, "scheduled")
 

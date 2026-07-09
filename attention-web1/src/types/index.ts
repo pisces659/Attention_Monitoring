@@ -1,5 +1,6 @@
 export type SessionStatus =
   | "completed"
+  | "failed"
   | "in-progress"
   | "scheduled"
   | "processing";

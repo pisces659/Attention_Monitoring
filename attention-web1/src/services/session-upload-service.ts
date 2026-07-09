@@ -35,9 +35,8 @@ export async function createSession(input: CreateSessionInput): Promise<Session>
 }
 
 export interface SessionUploadFiles {
-  rawVideo?: File;
-  annotatedVideo?: File;
-  csvFile: File;
+  video: File;
+  expectedWord?: string;
 }
 
 export async function uploadSessionFiles(
@@ -45,12 +44,9 @@ export async function uploadSessionFiles(
   files: SessionUploadFiles
 ): Promise<Session> {
   const formData = new FormData();
-  formData.append("csv_file", files.csvFile);
-  if (files.rawVideo) {
-    formData.append("raw_video", files.rawVideo);
-  }
-  if (files.annotatedVideo) {
-    formData.append("annotated_video", files.annotatedVideo);
+  formData.append("video", files.video);
+  if (files.expectedWord?.trim()) {
+    formData.append("expected_word", files.expectedWord.trim());
   }
 
   return apiFetch<Session>(API_ENDPOINTS.sessionUpload(sessionId), {
@@ -65,6 +61,10 @@ export async function createAndUploadSession(
 ): Promise<Session> {
   const session = await createSession(input);
   return uploadSessionFiles(session.id, files);
+}
+
+export async function fetchSession(sessionId: string): Promise<Session> {
+  return apiFetch<Session>(API_ENDPOINTS.session(sessionId));
 }
 
 export function toDatetimeLocalValue(date = new Date()): string {

@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -163,29 +163,26 @@ async def create_session(
 @router.post("/{session_id}/upload")
 async def upload_session_files(
     session_id: UUID,
-    csv_file: UploadFile = File(...),
-    raw_video: UploadFile | None = File(default=None),
-    annotated_video: UploadFile | None = File(default=None),
+    background_tasks: BackgroundTasks,
+    video: UploadFile = File(...),
+    expected_word: str = Form(default=""),
     auth: AuthContext = Depends(require_doctor_clinic),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     session = await _get_clinic_session(db, session_id, auth.clinic_id)
-    csv_bytes = await csv_file.read()
-    csv_text = csv_bytes.decode("utf-8")
-
-    raw_bytes = await raw_video.read() if raw_video else None
-    annotated_bytes = await annotated_video.read() if annotated_video else None
+    video_bytes = await video.read()
+    if not video_bytes:
+        raise HTTPException(status_code=400, detail="Video file is required.")
 
     upload_service = UploadService()
-    await upload_service.process_manual_upload(
+    await upload_service.start_video_upload(
         db,
         session,
-        raw_video=raw_bytes,
-        annotated_video=annotated_bytes,
-        csv_text=csv_text,
-        raw_filename=raw_video.filename if raw_video else None,
-        annotated_filename=annotated_video.filename if annotated_video else None,
+        video=video_bytes,
+        filename=video.filename,
+        expected_word=expected_word or None,
     )
+    background_tasks.add_task(upload_service.run_video_analysis, session_id)
 
     await db.refresh(session, attribute_names=["patient", "assessment", "report"])
     scores = _scores_from_session(session)
