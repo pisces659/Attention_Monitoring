@@ -145,7 +145,8 @@ class UploadService:
                 logger.info("Background analysis completed for session %s", session_id)
             except Exception as exc:
                 logger.exception("Video analysis failed for session %s", session_id)
-                await self._mark_failed(db, session, str(exc))
+                message = str(exc).encode("utf-8", errors="replace").decode("utf-8")
+                await self._mark_failed(db, session, message)
 
     async def _load_session(self, db: AsyncSession, session_id: UUID) -> Session | None:
         result = await db.execute(

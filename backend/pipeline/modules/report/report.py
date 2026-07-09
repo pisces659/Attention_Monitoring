@@ -21,9 +21,10 @@ class Report:
         df.to_csv(
             self.folder / "frame_data.csv",
             index=False,
+            encoding="utf-8",
         )
 
-        with open(self.folder / "summary.txt", "w") as f:
+        with open(self.folder / "summary.txt", "w", encoding="utf-8") as f:
 
             f.write("------ Attention Summary ------\n\n")
 

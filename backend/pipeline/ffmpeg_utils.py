@@ -8,20 +8,26 @@ from pathlib import Path
 from imageio_ffmpeg import get_ffmpeg_exe
 
 
+def _run_subprocess(args: list[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        args,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+
+
 def _run_ffmpeg(args: list[str]) -> None:
     cmd = [get_ffmpeg_exe(), *args]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = _run_subprocess(cmd)
     if result.returncode != 0:
         detail = (result.stderr or result.stdout or "ffmpeg failed").strip()
         raise RuntimeError(detail[-2000:])
 
 
 def _ffprobe(args: list[str]) -> str:
-    result = subprocess.run(
-        [get_ffmpeg_exe(), *args],
-        capture_output=True,
-        text=True,
-    )
+    result = _run_subprocess([get_ffmpeg_exe(), *args])
     return (result.stdout or "").strip()
 
 
@@ -191,10 +197,8 @@ def merge_video_audio(
     original_video = Path(original_video)
     annotated_video = Path(annotated_video)
 
-    probe = subprocess.run(
+    probe = _run_subprocess(
         [get_ffmpeg_exe(), "-i", str(original_video)],
-        capture_output=True,
-        text=True,
     )
     has_audio = "Audio:" in (probe.stderr or "")
 

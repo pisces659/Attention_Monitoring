@@ -3,6 +3,9 @@ Set-Location $PSScriptRoot
 
 # Required when Anaconda numpy and MediaPipe both link OpenMP (prevents hang/crash).
 $env:KMP_DUPLICATE_LIB_OK = "TRUE"
+# Force UTF-8 for Python logs and file writes on Windows (Whisper/speech text).
+$env:PYTHONUTF8 = "1"
+$env:PYTHONIOENCODING = "utf-8"
 
 if (-not (Test-Path ".env")) {
     Copy-Item ".env.example" ".env"
