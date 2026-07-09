@@ -33,7 +33,13 @@ export function formatDuration(minutes: number): string {
   return remainder > 0 ? `${hours}h ${remainder}m` : `${hours}h`;
 }
 
-export function formatPercent(value: number, digits = 0): string {
+export function formatPercent(
+  value: number | null | undefined,
+  digits = 0
+): string {
+  if (value == null || Number.isNaN(value)) {
+    return "N/A";
+  }
   return `${value.toFixed(digits)}%`;
 }
 

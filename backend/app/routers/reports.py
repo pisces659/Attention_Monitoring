@@ -17,6 +17,13 @@ from app.serializers import report_to_json, session_to_json, patient_to_json
 router = APIRouter(prefix="/reports", tags=["reports"])
 
 
+def _speech_score(speech: dict) -> int:
+    score = speech.get("speechScore")
+    if speech.get("available") and score is not None:
+        return int(score)
+    return 0
+
+
 @router.get("")
 async def list_reports(
     auth: AuthContext = Depends(require_doctor_clinic),
@@ -43,7 +50,7 @@ async def list_reports(
                 report,
                 patient_name=f"{session.patient.first_name} {session.patient.last_name}",
                 attention_score=metrics.get("overallAttentionPercent", 0),
-                speech_score=speech.get("speechScore", 0),
+                speech_score=_speech_score(speech),
                 event_time=session.completed_at
                 or session.started_at
                 or session.scheduled_at
@@ -97,7 +104,7 @@ async def _build_session_report(db: AsyncSession, report_id: UUID, clinic_id: UU
             report,
             patient_name=f"{patient.first_name} {patient.last_name}",
             attention_score=metrics.get("overallAttentionPercent", 0),
-            speech_score=speech_metrics.get("speechScore", 0),
+            speech_score=_speech_score(speech_metrics),
             event_time=session.completed_at or session.created_at,
             session_display_id=session.display_id or "",
         ),
@@ -105,7 +112,7 @@ async def _build_session_report(db: AsyncSession, report_id: UUID, clinic_id: UU
             session,
             patient_name=f"{patient.first_name} {patient.last_name}",
             attention_score=metrics.get("overallAttentionPercent", 0),
-            speech_score=speech_metrics.get("speechScore", 0),
+            speech_score=_speech_score(speech_metrics),
             blink_count=metrics.get("blinkCount", 0),
             report_id=str(report.id),
         ),

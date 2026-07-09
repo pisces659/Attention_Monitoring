@@ -17,6 +17,13 @@ from app.serializers import session_to_json
 router = APIRouter(tags=["analytics"])
 
 
+def _speech_score(speech: dict) -> int:
+    score = speech.get("speechScore")
+    if speech.get("available") and score is not None:
+        return int(score)
+    return 0
+
+
 @router.get("/analytics/summary")
 async def analytics_summary(
     session_id: UUID | None = Query(default=None, alias="sessionId"),
@@ -73,21 +80,21 @@ async def compare_sessions(
     speech_b = session_b.assessment.summary_json.get("speechMetrics", {}) if session_b.assessment else {}
 
     attention_delta = metrics_a.get("overallAttentionPercent", 0) - metrics_b.get("overallAttentionPercent", 0)
-    speech_delta = speech_a.get("speechScore", 0) - speech_b.get("speechScore", 0)
+    speech_delta = _speech_score(speech_a) - _speech_score(speech_b)
 
     return {
         "sessionA": session_to_json(
             session_a,
             patient_name=f"{session_a.patient.first_name} {session_a.patient.last_name}",
             attention_score=metrics_a.get("overallAttentionPercent", 0),
-            speech_score=speech_a.get("speechScore", 0),
+            speech_score=_speech_score(speech_a),
             blink_count=metrics_a.get("blinkCount", 0),
         ),
         "sessionB": session_to_json(
             session_b,
             patient_name=f"{session_b.patient.first_name} {session_b.patient.last_name}",
             attention_score=metrics_b.get("overallAttentionPercent", 0),
-            speech_score=speech_b.get("speechScore", 0),
+            speech_score=_speech_score(speech_b),
             blink_count=metrics_b.get("blinkCount", 0),
         ),
         "attentionDelta": attention_delta,
