@@ -25,36 +25,66 @@ class SessionFrame:
     attention_state: str
 
 
-def _parse_bool(value: str) -> bool:
-    return value.strip().lower() == "true"
+def _parse_bool(value: str | None, default: bool = False) -> bool:
+    if value is None:
+        return default
+    cleaned = value.strip()
+    if not cleaned:
+        return default
+    return cleaned.lower() == "true"
+
+
+def _parse_float(value: str | None, default: float = 0.0) -> float:
+    if value is None:
+        return default
+    cleaned = value.strip()
+    if not cleaned or cleaned.lower() == "none":
+        return default
+    try:
+        return float(cleaned)
+    except ValueError:
+        return default
+
+
+def _parse_int(value: str | None, default: int = 0) -> int:
+    if value is None:
+        return default
+    cleaned = value.strip()
+    if not cleaned or cleaned.lower() == "none":
+        return default
+    try:
+        return int(float(cleaned))
+    except ValueError:
+        return default
 
 
 def parse_session_csv(content: str) -> list[SessionFrame]:
-    lines = content.strip().splitlines()
-    rows = lines[1:] if len(lines) > 1 else []
+    import csv
+    from io import StringIO
 
+    reader = csv.DictReader(StringIO(content))
     frames: list[SessionFrame] = []
-    for row in rows:
-        if not row.strip():
+
+    for row in reader:
+        if not row:
             continue
-        columns = row.split(",")
         frames.append(
             SessionFrame(
-                frame=int(columns[0]),
-                time=float(columns[1]),
-                face_detected=_parse_bool(columns[2]),
-                ear=float(columns[7]),
-                blink=_parse_bool(columns[8]),
-                total_blinks=int(columns[9]),
-                yaw=float(columns[10]),
-                pitch=float(columns[11]),
-                roll=float(columns[12]),
-                horizontal_gaze=(columns[13] or "Center").strip(),
-                vertical_gaze=(columns[14] or "Center").strip(),
-                on_screen=_parse_bool(columns[15] if len(columns) > 15 else "false"),
-                horizontal_ratio=float(columns[16]),
-                vertical_ratio=float(columns[17]),
-                attention_state=(columns[18] if len(columns) > 18 else "Unknown").strip(),
+                frame=_parse_int(row.get("Frame")),
+                time=_parse_float(row.get("Time")),
+                face_detected=_parse_bool(row.get("FaceDetected", "false")),
+                ear=_parse_float(row.get("EAR")),
+                blink=_parse_bool(row.get("Blink", "false")),
+                total_blinks=_parse_int(row.get("TotalBlinks")),
+                yaw=_parse_float(row.get("Yaw")),
+                pitch=_parse_float(row.get("Pitch")),
+                roll=_parse_float(row.get("Roll")),
+                horizontal_gaze=(row.get("HorizontalGaze") or "Center").strip(),
+                vertical_gaze=(row.get("VerticalGaze") or "Center").strip(),
+                on_screen=_parse_bool(row.get("OnScreen", "false")),
+                horizontal_ratio=_parse_float(row.get("HorizontalRatio"), 0.5),
+                vertical_ratio=_parse_float(row.get("VerticalRatio"), 0.5),
+                attention_state=(row.get("AttentionState") or "Unknown").strip(),
             )
         )
     return frames

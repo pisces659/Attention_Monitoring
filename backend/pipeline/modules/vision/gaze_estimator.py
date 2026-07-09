@@ -102,13 +102,16 @@ class GazeEstimator:
 
         else:
 
+            yaw_value = yaw if yaw is not None else 0.0
+            pitch_value = pitch if pitch is not None else 0.0
+
             # Horizontal
 
-            if yaw < -15:
+            if yaw_value < -15:
 
                 horizontal = "Left"
 
-            elif yaw > 15:
+            elif yaw_value > 15:
 
                 horizontal = "Right"
 
@@ -128,11 +131,11 @@ class GazeEstimator:
 
             # Vertical
 
-            if pitch < -12:
+            if pitch_value < -12:
 
                 vertical = "Up"
 
-            elif pitch > 12:
+            elif pitch_value > 12:
 
                 vertical = "Down"
 
