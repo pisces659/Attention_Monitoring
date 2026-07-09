@@ -2,30 +2,26 @@
 
 from __future__ import annotations
 
-import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
 import cv2
 
-_PIPELINE_ROOT = Path(__file__).resolve().parent
-if str(_PIPELINE_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PIPELINE_ROOT))
-
-from modules.assessment.attention_engine import AttentionEngine
-from modules.audio.extractor import AudioExtractor
-from modules.audio.similarity import Similarity
-from modules.audio.speech import SpeechRecognizer
-from modules.report.report import Report
-from modules.video_export import VideoExporter
-from modules.video_loader import VideoLoader
-from modules.vision.blink_detector import BlinkDetector
-from modules.vision.face_detector import FaceDetector
-from modules.vision.gaze_estimator import GazeEstimator
-from modules.vision.head_pose import HeadPoseEstimator
-from modules.vision.iris_tracker import IrisTracker
-from modules import visualization as viz
+from pipeline.modules import visualization as viz
+from pipeline.modules.assessment.attention_engine import AttentionEngine
+from pipeline.modules.audio.extractor import AudioExtractor
+from pipeline.modules.audio.similarity import Similarity
+from pipeline.modules.audio.speech import SpeechRecognizer
+from pipeline.modules.report.report import Report
+from pipeline.modules.video_export import VideoExporter
+from pipeline.modules.video_loader import VideoLoader
+from pipeline.modules.vision.blink_detector import BlinkDetector
+from pipeline.modules.vision.face_detector import FaceDetector
+from pipeline.modules.vision.gaze_estimator import GazeEstimator
+from pipeline.modules.vision.head_pose import HeadPoseEstimator
+from pipeline.modules.vision.iris_tracker import IrisTracker
+from pipeline.video_utils import ensure_opencv_readable
 
 DEFAULT_GAZE = {
     "Horizontal": "Center",
@@ -51,7 +47,7 @@ def analyze_video(
     expected_word: str = "Elephant",
     show_landmarks: bool = True,
 ) -> AnalysisResult:
-    video_path = Path(video_path)
+    video_path = ensure_opencv_readable(Path(video_path))
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -93,84 +89,86 @@ def analyze_video(
     left_center = (0.0, 0.0)
     right_center = (0.0, 0.0)
 
-    while True:
-        success, frame = video.read()
-        if not success:
-            break
+    try:
+        while True:
+            success, frame = video.read()
+            if not success:
+                break
 
-        frame_no += 1
-        results = detector.process(frame)
-        found = False
+            frame_no += 1
+            results = detector.process(frame)
+            found = False
 
-        if results.multi_face_landmarks:
-            found = True
-            for face in results.multi_face_landmarks:
-                if show_landmarks:
-                    viz.draw_landmarks(frame, face)
+            if results.multi_face_landmarks:
+                found = True
+                for face in results.multi_face_landmarks:
+                    if show_landmarks:
+                        viz.draw_landmarks(frame, face)
 
-                left, right = iris.extract(face, frame.shape)
-                left_center = left[0]
-                right_center = right[0]
-                viz.draw_iris(frame, left, (255, 0, 0))
-                viz.draw_iris(frame, right, (0, 0, 255))
+                    left, right = iris.extract(face, frame.shape)
+                    left_center = left[0]
+                    right_center = right[0]
+                    viz.draw_iris(frame, left, (255, 0, 0))
+                    viz.draw_iris(frame, right, (0, 0, 255))
 
-                ear, blink, total_blinks = blink_detector.process(face, frame.shape)
-                viz.draw_blink(frame, ear, total_blinks)
+                    ear, blink, total_blinks = blink_detector.process(face, frame.shape)
+                    viz.draw_blink(frame, ear, total_blinks)
 
-                pose = head_pose.estimate(face, frame)
-                if pose is not None:
-                    yaw, pitch, roll = pose
-                    gaze_result = gaze.estimate(face, frame.shape, ear, yaw, pitch)
-                    attention_state = attention.classify(gaze_result, blink, ear, frame_time)
-                else:
-                    yaw = pitch = roll = None
-                    gaze_result = DEFAULT_GAZE.copy()
-                    attention_state = "No Face"
+                    pose = head_pose.estimate(face, frame)
+                    if pose is not None:
+                        yaw, pitch, roll = pose
+                        gaze_result = gaze.estimate(face, frame.shape, ear, yaw, pitch)
+                        attention_state = attention.classify(gaze_result, blink, ear, frame_time)
+                    else:
+                        yaw = pitch = roll = None
+                        gaze_result = DEFAULT_GAZE.copy()
+                        attention_state = "No Face"
 
-                viz.draw_pose(frame, yaw, pitch, roll)
-                viz.draw_gaze(frame, gaze_result)
-                viz.draw_attention(frame, attention_state)
-        else:
-            ear = 0.0
-            blink = False
-            total_blinks = blink_detector.total_blinks
-            gaze_result = DEFAULT_GAZE.copy()
-            attention_state = "No Face"
-            yaw = pitch = roll = None
-            left_center = (0.0, 0.0)
-            right_center = (0.0, 0.0)
+                    viz.draw_pose(frame, yaw, pitch, roll)
+                    viz.draw_gaze(frame, gaze_result)
+                    viz.draw_attention(frame, attention_state)
+            else:
+                ear = 0.0
+                blink = False
+                total_blinks = blink_detector.total_blinks
+                gaze_result = DEFAULT_GAZE.copy()
+                attention_state = "No Face"
+                yaw = pitch = roll = None
+                left_center = (0.0, 0.0)
+                right_center = (0.0, 0.0)
 
-        elapsed = time.time() - start
-        fps = frame_no / elapsed if elapsed > 0 else 0
-        viz.draw_info(frame, frame_no, fps)
+            elapsed = time.time() - start
+            fps = frame_no / elapsed if elapsed > 0 else 0
+            viz.draw_info(frame, frame_no, fps)
 
-        timestamp = frame_no / video.fps if video.fps else frame_no * frame_time
-        frame_data = {
-            "Frame": frame_no,
-            "Time": round(timestamp, 3),
-            "FaceDetected": found,
-            "LeftIrisX": left_center[0] if found else None,
-            "LeftIrisY": left_center[1] if found else None,
-            "RightIrisX": right_center[0] if found else None,
-            "RightIrisY": right_center[1] if found else None,
-            "EAR": round(ear, 4),
-            "Blink": blink,
-            "TotalBlinks": total_blinks,
-            "Yaw": yaw,
-            "Pitch": pitch,
-            "Roll": roll,
-            "HorizontalGaze": gaze_result["Horizontal"],
-            "VerticalGaze": gaze_result["Vertical"],
-            "OnScreen": gaze_result["OnScreen"],
-            "HorizontalRatio": gaze_result["HRatio"],
-            "VerticalRatio": gaze_result["VRatio"],
-            "AttentionState": attention_state,
-        }
-        report.add(frame_data)
-        video_writer.write(frame)
-
-    video.release()
-    video_writer.release()
+            timestamp = frame_no / video.fps if video.fps else frame_no * frame_time
+            frame_data = {
+                "Frame": frame_no,
+                "Time": round(timestamp, 3),
+                "FaceDetected": found,
+                "LeftIrisX": left_center[0] if found else None,
+                "LeftIrisY": left_center[1] if found else None,
+                "RightIrisX": right_center[0] if found else None,
+                "RightIrisY": right_center[1] if found else None,
+                "EAR": round(ear, 4),
+                "Blink": blink,
+                "TotalBlinks": total_blinks,
+                "Yaw": yaw,
+                "Pitch": pitch,
+                "Roll": roll,
+                "HorizontalGaze": gaze_result["Horizontal"],
+                "VerticalGaze": gaze_result["Vertical"],
+                "OnScreen": gaze_result["OnScreen"],
+                "HorizontalRatio": gaze_result["HRatio"],
+                "VerticalRatio": gaze_result["VRatio"],
+                "AttentionState": attention_state,
+            }
+            report.add(frame_data)
+            video_writer.write(frame)
+    finally:
+        video.release()
+        video_writer.release()
+        detector.close()
 
     exporter.merge_audio(str(video_path), str(annotated_path), str(final_path))
 

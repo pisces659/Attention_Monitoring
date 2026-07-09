@@ -4,16 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import shutil
-import sys
 from pathlib import Path
 from uuid import UUID
 
-_BACKEND_ROOT = Path(__file__).resolve().parents[2]
-_PIPELINE_ROOT = _BACKEND_ROOT / "pipeline"
-if str(_PIPELINE_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PIPELINE_ROOT))
+from pipeline.analyze import AnalysisResult, analyze_video
 
-from analyze import AnalysisResult, analyze_video  # noqa: E402
+_BACKEND_ROOT = Path(__file__).resolve().parents[2]
 
 
 def processing_dir(session_id: UUID) -> Path:

@@ -26,6 +26,7 @@ __pycache__/
 backend/.venv/
 backend/uploads/
 backend/uploads/processing/
+backend/pipeline/models/
 backend/neurolens.db
 backend/*.db
 
