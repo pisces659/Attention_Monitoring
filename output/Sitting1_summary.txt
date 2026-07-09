@@ -1,0 +1,16 @@
+------ Attention Summary ------
+
+Focus Time : 5.04 sec
+Attention Drifts : 19
+Longest Focus : 1.14 sec
+
+----- Speech Assessment -----
+
+Expected Word : Elephant
+Keyword Found : False
+Matched Text  : Elite, Elite Fand
+Confidence    : 50.0 %
+Response Time : 6.93 sec
+Speech Timeline
+---------------------------------------------
+[ 6.93 - 12.94]  Elite, Elite Fand

@@ -1,0 +1,16 @@
+------ Attention Summary ------
+
+Focus Time : 4.62 sec
+Attention Drifts : 28
+Longest Focus : 1.2 sec
+
+----- Speech Assessment -----
+
+Expected Word : Elephant
+Keyword Found : True
+Matched Text  : Elephant
+Confidence    : 100 %
+Response Time : 8.05 sec
+Speech Timeline
+---------------------------------------------
+[ 8.05 - 10.05]  Elephant
