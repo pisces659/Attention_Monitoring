@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import shutil
 from pathlib import Path
+from typing import TYPE_CHECKING
 from uuid import UUID
 
-from pipeline.analyze import AnalysisResult, analyze_video
+if TYPE_CHECKING:
+    from pipeline.analyze import AnalysisResult
 
+logger = logging.getLogger(__name__)
 _BACKEND_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -32,10 +36,13 @@ def run_analysis_sync(
     *,
     expected_word: str,
 ) -> AnalysisResult:
+    from pipeline.analyze import analyze_video
+
     output_dir = processing_dir(session_id) / "output"
     if output_dir.exists():
         shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    logger.info("Running video analysis for session %s", session_id)
     return analyze_video(input_path, output_dir, expected_word=expected_word)
 
 

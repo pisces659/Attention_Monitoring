@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import logging
+import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
+
+# Anaconda + MediaPipe + OpenCV often conflict on OpenMP — must be set before native imports.
+os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
 import cv2
 
@@ -12,7 +17,6 @@ from pipeline.modules import visualization as viz
 from pipeline.modules.assessment.attention_engine import AttentionEngine
 from pipeline.modules.audio.extractor import AudioExtractor
 from pipeline.modules.audio.similarity import Similarity
-from pipeline.modules.audio.speech import SpeechRecognizer
 from pipeline.modules.report.report import Report
 from pipeline.modules.video_export import VideoExporter
 from pipeline.modules.video_loader import VideoLoader
@@ -22,6 +26,8 @@ from pipeline.modules.vision.gaze_estimator import GazeEstimator
 from pipeline.modules.vision.head_pose import HeadPoseEstimator
 from pipeline.modules.vision.iris_tracker import IrisTracker
 from pipeline.video_utils import ensure_opencv_readable
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_GAZE = {
     "Horizontal": "Center",
@@ -71,10 +77,11 @@ def analyze_video(
     gaze = GazeEstimator()
     attention = AttentionEngine()
     audio_extractor = AudioExtractor()
-    speech = SpeechRecognizer()
     similarity = Similarity()
     exporter = VideoExporter()
     report = Report(str(output_dir))
+
+    logger.info("Starting frame analysis for %s", video_path)
 
     frame_no = 0
     start = time.time()
@@ -96,7 +103,8 @@ def analyze_video(
                 break
 
             frame_no += 1
-            results = detector.process(frame)
+            timestamp_ms = int((frame_no / video.fps) * 1000) if video.fps else frame_no * 33
+            results = detector.process(frame, timestamp_ms)
             found = False
 
             if results.multi_face_landmarks:
@@ -170,9 +178,14 @@ def analyze_video(
         video_writer.release()
         detector.close()
 
+    logger.info("Frame analysis complete (%s frames). Merging audio...", frame_no)
     exporter.merge_audio(str(video_path), str(annotated_path), str(final_path))
 
+    logger.info("Extracting audio and running speech recognition...")
     audio_extractor.extract(str(video_path), str(audio_path))
+    from pipeline.modules.audio.speech import SpeechRecognizer
+
+    speech = SpeechRecognizer()
     _recognized, speech_segments = speech.recognize(str(audio_path))
     match = similarity.find_keyword(expected_word, speech_segments)
 
@@ -186,6 +199,7 @@ def analyze_video(
 
     report.save(pipeline_summary)
 
+    logger.info("Analysis finished for %s", video_path)
     return AnalysisResult(
         annotated_video_path=final_path,
         csv_path=output_dir / "frame_data.csv",

@@ -70,6 +70,7 @@ class UploadService:
                 return
 
             try:
+                logger.info("Background analysis started for session %s", session_id)
                 expected_word_path = work_dir / "expected_word.txt"
                 expected_word = (
                     expected_word_path.read_text(encoding="utf-8").strip()
@@ -141,6 +142,7 @@ class UploadService:
                     db.add(report)
 
                 await db.commit()
+                logger.info("Background analysis completed for session %s", session_id)
             except Exception as exc:
                 logger.exception("Video analysis failed for session %s", session_id)
                 await self._mark_failed(db, session, str(exc))

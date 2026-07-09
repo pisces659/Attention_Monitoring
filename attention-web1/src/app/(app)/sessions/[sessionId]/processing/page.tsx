@@ -27,6 +27,22 @@ const steps = [
   "Building CSV metrics and report",
 ];
 
+const STALL_MINUTES = 8;
+
+function formatElapsed(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+}
+
+function failureMessage(session: Session | null): string {
+  if (!session?.doctorNotes) {
+    return "Video analysis failed. Check the backend terminal and try again.";
+  }
+  const match = session.doctorNotes.match(/Analysis failed:\s*(.+)$/s);
+  return match?.[1]?.trim() || session.doctorNotes;
+}
+
 export default function ProcessingPage() {
   return (
     <Suspense
@@ -49,9 +65,11 @@ function ProcessingContent() {
   const patientId = searchParams.get("patientId");
 
   const [session, setSession] = useState<Session | null>(null);
-  const [progress, setProgress] = useState(8);
+  const [progress, setProgress] = useState(5);
   const [stepIndex, setStepIndex] = useState(0);
   const [error, setError] = useState("");
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [startedAt] = useState(() => Date.now());
 
   const reportId = session?.reportId || reportIdParam;
   const reportHref =
@@ -61,9 +79,17 @@ function ProcessingContent() {
     : "/dashboard";
 
   const complete =
-    session?.status === "completed" ||
-    (!USE_API && progress >= 100);
+    session?.status === "completed" || (!USE_API && progress >= 100);
   const failed = session?.status === "failed";
+  const processing =
+    session?.status === "processing" || session?.status === "in-progress";
+
+  useEffect(() => {
+    const tick = window.setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+    return () => window.clearInterval(tick);
+  }, [startedAt]);
 
   useEffect(() => {
     if (!USE_API || !sessionId) {
@@ -88,13 +114,20 @@ function ProcessingContent() {
         setSession(latest);
 
         if (latest.status === "processing" || latest.status === "in-progress") {
-          setProgress((current) => Math.min(current + 8, 92));
-          setStepIndex((current) => Math.min(current + 1, steps.length - 2));
+          setStepIndex((current) => {
+            const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+            if (elapsed < 15) return 1;
+            if (elapsed < 45) return 2;
+            if (elapsed < 90) return 3;
+            return 4;
+          });
+          setProgress((current) => Math.min(current + 2, 95));
         } else if (latest.status === "completed") {
           setProgress(100);
           setStepIndex(steps.length - 1);
+          setError("");
         } else if (latest.status === "failed") {
-          setError("Video analysis failed. Check backend logs and try again.");
+          setError(failureMessage(latest));
         }
       } catch {
         if (!cancelled) {
@@ -104,18 +137,29 @@ function ProcessingContent() {
     }
 
     poll();
-    const interval = window.setInterval(poll, 2500);
+    const interval = window.setInterval(poll, 2000);
     return () => {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [sessionId]);
+  }, [sessionId, startedAt]);
+
+  useEffect(() => {
+    if (!processing || failed || complete) {
+      return;
+    }
+    if (elapsedSeconds >= STALL_MINUTES * 60) {
+      setError(
+        `Processing has run for over ${STALL_MINUTES} minutes. Stop the backend (Ctrl+C), restart with .\\run_dev.ps1, and upload again. Check the backend terminal for errors.`
+      );
+    }
+  }, [elapsedSeconds, processing, failed, complete]);
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
       <PageHeader
         title="Processing Session"
-        description="The Ram-branch AI pipeline is analyzing the uploaded therapy video."
+        description="The AI pipeline is analyzing your therapy video. This usually takes 1–3 minutes."
       />
 
       <Card className="border-0 shadow-sm ring-1 ring-border/60">
@@ -123,7 +167,7 @@ function ProcessingContent() {
           <CardTitle>AI processing pipeline</CardTitle>
           <CardDescription>
             {USE_API
-              ? "Generating annotated video, frame_data.csv, and session report from your upload."
+              ? "Generating annotated video, frame_data.csv, and session report."
               : "This simulates the integrated FastAPI + Python engine."}
           </CardDescription>
         </CardHeader>
@@ -132,10 +176,10 @@ function ProcessingContent() {
             <div className="flex items-center justify-between text-sm">
               <span className="font-medium">{steps[stepIndex]}</span>
               <span className="tabular-nums text-muted-foreground">
-                {progress}%
+                {complete ? 100 : progress}% · {formatElapsed(elapsedSeconds)}
               </span>
             </div>
-            <Progress value={progress} />
+            <Progress value={complete ? 100 : progress} />
           </div>
 
           <div className="space-y-3">
@@ -147,7 +191,7 @@ function ProcessingContent() {
               >
                 {index < stepIndex || complete ? (
                   <CheckCircle2 className="size-4 text-[#22C55E]" />
-                ) : index === stepIndex ? (
+                ) : index === stepIndex && !failed ? (
                   <LoaderCircle className="size-4 animate-spin text-[#2563EB]" />
                 ) : (
                   <span className="size-4 rounded-full border border-border" />
@@ -156,6 +200,13 @@ function ProcessingContent() {
               </div>
             ))}
           </div>
+
+          {processing && !failed && !complete ? (
+            <p className="text-sm text-muted-foreground">
+              First run may take longer while AI models download. Keep this tab
+              open and watch the backend terminal for progress logs.
+            </p>
+          ) : null}
 
           {error ? <p className="text-sm text-[#EF4444]">{error}</p> : null}
 
@@ -171,7 +222,7 @@ function ProcessingContent() {
                 <Link href="/sessions">Back to sessions</Link>
               </Button>
             </div>
-          ) : failed ? (
+          ) : failed || error ? (
             <Button variant="outline" asChild>
               <Link href={`/sessions/${sessionId}/upload`}>Try again</Link>
             </Button>

@@ -30,17 +30,17 @@ class FaceDetector:
             base_options=mp_tasks.BaseOptions(
                 model_asset_path=str(get_face_landmarker_model())
             ),
-            running_mode=vision.RunningMode.IMAGE,
+            running_mode=vision.RunningMode.VIDEO,
             num_faces=1,
             output_face_blendshapes=False,
             output_facial_transformation_matrixes=False,
         )
         self._landmarker = vision.FaceLandmarker.create_from_options(options)
 
-    def process(self, frame) -> FaceMeshResult:
+    def process(self, frame, timestamp_ms: int) -> FaceMeshResult:
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-        result = self._landmarker.detect(mp_image)
+        result = self._landmarker.detect_for_video(mp_image, timestamp_ms)
         return FaceMeshResult(result.face_landmarks if result.face_landmarks else None)
 
     def close(self) -> None:

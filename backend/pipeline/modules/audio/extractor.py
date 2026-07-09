@@ -1,19 +1,15 @@
 import wave
 from pathlib import Path
 
-from moviepy.editor import VideoFileClip
+from pipeline.ffmpeg_utils import extract_audio_wav
 
 
 class AudioExtractor:
     def extract(self, video_path, output_audio):
-        clip = VideoFileClip(video_path)
-        if clip.audio is None:
-            clip.close()
+        try:
+            extract_audio_wav(video_path, output_audio)
+        except RuntimeError:
             self._write_silent_wav(output_audio, duration_seconds=1.0)
-            return
-
-        clip.audio.write_audiofile(output_audio, logger=None)
-        clip.close()
 
     @staticmethod
     def _write_silent_wav(path: str, *, duration_seconds: float, sample_rate: int = 16000) -> None:

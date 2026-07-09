@@ -6,6 +6,8 @@ from pathlib import Path
 
 import cv2
 
+from pipeline.ffmpeg_utils import convert_to_mp4
+
 
 def _can_read_video(path: Path) -> bool:
     cap = cv2.VideoCapture(str(path))
@@ -22,18 +24,5 @@ def ensure_opencv_readable(video_path: Path) -> Path:
     if _can_read_video(video_path):
         return video_path
 
-    if video_path.suffix.lower() == ".mp4":
-        raise ValueError(f"OpenCV cannot read video: {video_path}")
-
-    from moviepy.editor import VideoFileClip
-
     converted = video_path.parent / f"{video_path.stem}_converted.mp4"
-    clip = VideoFileClip(str(video_path))
-    clip.write_videofile(
-        str(converted),
-        codec="libx264",
-        audio_codec="aac",
-        logger=None,
-    )
-    clip.close()
-    return converted
+    return convert_to_mp4(video_path, converted)
