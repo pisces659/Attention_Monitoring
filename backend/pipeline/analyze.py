@@ -25,6 +25,7 @@ from pipeline.modules.vision.face_detector import FaceDetector
 from pipeline.modules.vision.gaze_estimator import GazeEstimator
 from pipeline.modules.vision.head_pose import HeadPoseEstimator
 from pipeline.modules.vision.iris_tracker import IrisTracker
+from pipeline.ffmpeg_utils import clamp_fps, probe_duration_seconds, reencode_video_with_fps
 from pipeline.video_utils import ensure_opencv_readable
 
 logger = logging.getLogger(__name__)
@@ -58,6 +59,7 @@ def analyze_video(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     video = VideoLoader(str(video_path))
+    source_duration = video.duration_seconds or probe_duration_seconds(Path(video_path))
     annotated_path = output_dir / "annotated_output.mp4"
     final_path = output_dir / "Final_Output.mp4"
     audio_path = output_dir / "audio.wav"
@@ -81,7 +83,12 @@ def analyze_video(
     exporter = VideoExporter()
     report = Report(str(output_dir))
 
-    logger.info("Starting frame analysis for %s", video_path)
+    logger.info(
+        "Starting frame analysis for %s (fps=%.2f, duration=%ss)",
+        video_path,
+        video.fps,
+        f"{source_duration:.2f}" if source_duration else "unknown",
+    )
 
     frame_no = 0
     start = time.time()
@@ -177,6 +184,18 @@ def analyze_video(
         video.release()
         video_writer.release()
         detector.close()
+
+    if source_duration and frame_no > 0:
+        actual_fps = clamp_fps(frame_no / source_duration)
+        if abs(actual_fps - video.fps) > 0.5:
+            logger.info(
+                "Re-timing annotated video from %.2f fps to %.2f fps",
+                video.fps,
+                actual_fps,
+            )
+            corrected_path = output_dir / "annotated_timed.mp4"
+            reencode_video_with_fps(annotated_path, corrected_path, actual_fps)
+            annotated_path = corrected_path
 
     logger.info("Frame analysis complete (%s frames). Merging audio...", frame_no)
     exporter.merge_audio(str(video_path), str(annotated_path), str(final_path))

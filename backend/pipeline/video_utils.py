@@ -20,7 +20,12 @@ def _can_read_video(path: Path) -> bool:
 
 
 def ensure_opencv_readable(video_path: Path) -> Path:
-    """Convert webcam WEBM/MOV inputs to MP4 when OpenCV cannot decode them."""
+    """Normalize webcam WEBM to MP4 and ensure OpenCV can decode the file."""
+    suffix = video_path.suffix.lower()
+    if suffix == ".webm":
+        converted = video_path.parent / f"{video_path.stem}_converted.mp4"
+        return convert_to_mp4(video_path, converted)
+
     if _can_read_video(video_path):
         return video_path
 
