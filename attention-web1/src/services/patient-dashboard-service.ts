@@ -27,7 +27,23 @@ export async function getPatientTimeHistoryDashboard(
 
   return serverApiFetch<PatientTimeHistoryDashboard>(
     API_ENDPOINTS.patientTimeHistory(resolvedPatientId)
-  );
+  ).then((dashboard) => {
+    if (!dashboard.sessionDetails?.length && dashboard.latestSession.sessionId) {
+      return {
+        ...dashboard,
+        sessionDetails: [
+          {
+            sessionId: dashboard.latestSession.sessionId,
+            dateLabel: dashboard.latestSession.dateLabel,
+            timeLabel: "—",
+            session: dashboard.latestSession,
+            analytics: dashboard.analyticsFooter,
+          },
+        ],
+      };
+    }
+    return dashboard;
+  });
 }
 
 export async function getSidebarPatients() {

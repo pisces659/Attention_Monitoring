@@ -177,34 +177,79 @@ function buildFocusDistribution(frames: SessionFrame[]): DonutSegment[] {
   ];
 }
 
+function attentionStateToGazeZone(state: string): string {
+  return state;
+}
+
+const GAZE_ZONE_GRID: Record<string, [number, number]> = {
+  Focused: [3, 3],
+  "Looking Up": [0, 3],
+  "Looking Down": [7, 3],
+  "Looking Left": [1, 1],
+  "Looking Right": [1, 6],
+  Closed: [3, 3],
+  "Eyes Closed": [3, 3],
+  Blink: [3, 3],
+};
+
 function buildGazeHeatmap(frames: SessionFrame[]): HeatmapCell[] {
   const gridSize = 8;
+  const matrix = Array.from({ length: gridSize }, () =>
+    Array.from({ length: gridSize }, () => 0)
+  );
+
+  for (const frame of frames) {
+    const zone = attentionStateToGazeZone(frame.attentionState);
+    if (zone === "No Face") {
+      continue;
+    }
+    const [row, col] = GAZE_ZONE_GRID[zone] ?? [3, 3];
+    matrix[row][col] += 1;
+  }
+
   const cells: HeatmapCell[] = [];
+  const flatMax = Math.max(...matrix.flat(), 1);
 
-  for (let x = 0; x < gridSize; x += 1) {
-    for (let y = 0; y < gridSize; y += 1) {
-      const xMin = x / gridSize;
-      const xMax = (x + 1) / gridSize;
-      const yMin = y / gridSize;
-      const yMax = (y + 1) / gridSize;
-
-      const matches = frames.filter(
-        (frame) =>
-          frame.horizontalRatio >= xMin &&
-          frame.horizontalRatio < xMax &&
-          frame.verticalRatio >= yMin &&
-          frame.verticalRatio < yMax
-      );
-
-      cells.push({ x, y, intensity: matches.length });
+  for (let y = 0; y < gridSize; y += 1) {
+    for (let x = 0; x < gridSize; x += 1) {
+      cells.push({
+        x,
+        y,
+        intensity: Math.round((matrix[y][x] / flatMax) * 100),
+      });
     }
   }
 
-  const maxIntensity = Math.max(...cells.map((cell) => cell.intensity), 1);
-  return cells.map((cell) => ({
-    ...cell,
-    intensity: Math.round((cell.intensity / maxIntensity) * 100),
-  }));
+  return cells;
+}
+
+function buildGazeDistribution(frames: SessionFrame[]): DonutSegment[] {
+  const counts = new Map<string, number>();
+  for (const frame of frames) {
+    const zone = attentionStateToGazeZone(frame.attentionState);
+    counts.set(zone, (counts.get(zone) ?? 0) + 1);
+  }
+
+  const colors: Record<string, string> = {
+    Focused: "#22C55E",
+    "Looking Up": "#F59E0B",
+    "Looking Down": "#F97316",
+    "Looking Left": "#8B5CF6",
+    "Looking Right": "#EC4899",
+    "Eyes Closed": "#EF4444",
+    Blink: "#6366F1",
+    "No Face": "#94A3B8",
+    Closed: "#EF4444",
+  };
+
+  const total = frames.length || 1;
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, count]) => ({
+      name,
+      value: Math.round((count / total) * 100),
+      color: colors[name] ?? "#94A3B8",
+    }));
 }
 
 function buildAttentionMetrics(frames: SessionFrame[]): AttentionMetrics {

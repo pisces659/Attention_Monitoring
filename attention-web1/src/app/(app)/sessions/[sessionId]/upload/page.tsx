@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import PageHeader from "@/components/dashboard/PageHeader";
 import SessionVideoInput, {
+  type SessionVideoSelection,
   type VideoInputMode,
 } from "@/components/sessions/SessionVideoInput";
 import { Button } from "@/components/ui/button";
@@ -17,11 +18,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { USE_API } from "@/lib/api-config";
-import type { Session } from "@/types";
 import {
   fetchSession,
   uploadSessionFiles,
 } from "@/services/session-upload-service";
+import type { Session } from "@/types";
+import { BUILTIN_STIMULUS_ID } from "@/types/stimulus-video";
 
 export default function UploadSessionPage() {
   const router = useRouter();
@@ -30,8 +32,8 @@ export default function UploadSessionPage() {
 
   const [session, setSession] = useState<Session | null>(null);
   const [videoMode, setVideoMode] = useState<VideoInputMode>("upload");
-  const [videoFile, setVideoFile] = useState<File | undefined>();
-  const [expectedWord, setExpectedWord] = useState("Elephant");
+  const [videoSelection, setVideoSelection] = useState<SessionVideoSelection>();
+  const [stimulusVideoId, setStimulusVideoId] = useState(BUILTIN_STIMULUS_ID);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -49,7 +51,7 @@ export default function UploadSessionPage() {
     event.preventDefault();
     setError("");
 
-    if (!videoFile) {
+    if (!videoSelection?.file) {
       setError("Please upload or record a therapy video.");
       return;
     }
@@ -58,8 +60,9 @@ export default function UploadSessionPage() {
 
     try {
       const updated = await uploadSessionFiles(sessionId, {
-        video: videoFile,
-        expectedWord,
+        video: videoSelection.file,
+        calibration: videoSelection.calibration,
+        stimulusVideoId: videoSelection.stimulusVideoId ?? stimulusVideoId,
       });
 
       const query = new URLSearchParams();
@@ -111,10 +114,10 @@ export default function UploadSessionPage() {
             <SessionVideoInput
               mode={videoMode}
               onModeChange={setVideoMode}
-              videoFile={videoFile}
-              onVideoFileChange={setVideoFile}
-              expectedWord={expectedWord}
-              onExpectedWordChange={setExpectedWord}
+              selection={videoSelection}
+              onSelectionChange={setVideoSelection}
+              stimulusVideoId={stimulusVideoId}
+              onStimulusVideoIdChange={setStimulusVideoId}
               disabled={submitting}
             />
 

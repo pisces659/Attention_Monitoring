@@ -36,6 +36,23 @@ export interface DualTrendPoint {
   attentionDrift: number;
 }
 
+export interface SpeechWordMatch {
+  expectedWord: string;
+  detectedWord: string | null;
+  confidence: number;
+  responseTime: string;
+  found?: boolean;
+  inTimeWindow?: boolean;
+  timingConfidence?: number;
+  expectedWindowStart?: number;
+  expectedWindowEnd?: number;
+}
+
+export interface SpeechOtherWord {
+  word: string;
+  confidence: number;
+}
+
 export interface LatestSessionData {
   sessionId?: string | null;
   sessionDisplayId?: string;
@@ -52,9 +69,12 @@ export interface LatestSessionData {
   attentionDrifts: number;
   longestFocus: string;
   expectedWord: string;
+  expectedWords?: string[];
   detectedWord: string;
   confidence: number | null;
   responseTime: string;
+  speechMatches?: SpeechWordMatch[];
+  speechOtherWords?: SpeechOtherWord[];
   speechAvailable?: boolean;
   doctorNotes?: string;
   rawVideoFileName?: string;
@@ -75,6 +95,14 @@ export interface AnalyticsFooterData {
   engagementLabel: string;
 }
 
+export interface DashboardSessionDetail {
+  sessionId: string;
+  dateLabel: string;
+  timeLabel: string;
+  session: LatestSessionData;
+  analytics: AnalyticsFooterData;
+}
+
 export interface PatientTimeHistoryDashboard {
   patient: {
     id?: string;
@@ -87,6 +115,7 @@ export interface PatientTimeHistoryDashboard {
   summaryMetrics: PatientSummaryMetric[];
   attentionOverTime: DualTrendPoint[];
   sessionHistory: SessionHistoryRow[];
+  sessionDetails: DashboardSessionDetail[];
   latestSession: LatestSessionData;
   analyticsFooter: AnalyticsFooterData;
 }
@@ -132,6 +161,7 @@ export const patientTimeHistoryDashboard: PatientTimeHistoryDashboard = {
     { id: "s5", date: "08 May 2025", time: "11:30 AM", expectedWord: "Bird", focusTime: "18.0 sec", drifts: 3, result: "correct" },
   ],
   latestSession: {
+    sessionId: "s1",
     dateLabel: "21 May 2025",
     attentionStatus: "Focused",
     ear: "0.23",
@@ -149,10 +179,161 @@ export const patientTimeHistoryDashboard: PatientTimeHistoryDashboard = {
     attentionDrifts: 2,
     longestFocus: "9.8 sec",
     expectedWord: "Dog",
+    expectedWords: ["Dog"],
     detectedWord: "Dog",
     confidence: 100,
     responseTime: "10.51 sec",
+    speechMatches: [
+      {
+        expectedWord: "Dog",
+        detectedWord: "Dog",
+        confidence: 100,
+        responseTime: "10.5s",
+        found: true,
+      },
+    ],
+    speechOtherWords: [],
+    speechAvailable: true,
   },
+  sessionDetails: [
+    {
+      sessionId: "s1",
+      dateLabel: "21 May 2025",
+      timeLabel: "10:32 AM",
+      session: {
+        sessionId: "s1",
+        dateLabel: "21 May 2025",
+        attentionStatus: "Focused",
+        ear: "0.23",
+        blink: "No",
+        yaw: "-2.1°",
+        pitch: "1.3°",
+        totalTimeSeconds: 45,
+        focusDistribution: [
+          { name: "Focused", value: 67, color: "#22C55E" },
+          { name: "Looking Away", value: 19, color: "#F59E0B" },
+          { name: "Eyes Closed", value: 7, color: "#EF4444" },
+          { name: "Blink", value: 7, color: "#8B5CF6" },
+        ],
+        focusTime: "19.3 sec",
+        attentionDrifts: 2,
+        longestFocus: "9.8 sec",
+        expectedWord: "Dog",
+        expectedWords: ["Dog"],
+        detectedWord: "Dog",
+        confidence: 100,
+        responseTime: "10.51 sec",
+        speechMatches: [
+          {
+            expectedWord: "Dog",
+            detectedWord: "Dog",
+            confidence: 100,
+            responseTime: "10.5s",
+            found: true,
+          },
+        ],
+        speechOtherWords: [],
+        speechAvailable: true,
+      },
+      analytics: {
+        gazeHeatmap: [
+          [10, 25, 40, 55, 70, 55, 40, 25],
+          [15, 35, 60, 80, 95, 80, 60, 35],
+          [20, 45, 75, 100, 100, 75, 45, 20],
+          [15, 35, 60, 85, 90, 85, 60, 35],
+          [10, 25, 40, 55, 70, 55, 40, 25],
+        ],
+        gazeDistribution: [
+          { name: "Center", value: 62, color: "#2563EB" },
+          { name: "Up", value: 16, color: "#22C55E" },
+          { name: "Down", value: 12, color: "#F59E0B" },
+          { name: "Left", value: 6, color: "#8B5CF6" },
+          { name: "Right", value: 4, color: "#EC4899" },
+        ],
+        totalBlinks: 12,
+        blinkRate: "15/min",
+        headStabilityScore: 92,
+        headMovementLevel: "Low",
+        headMovementTrend: [
+          { label: "0s", value: 88 },
+          { label: "10s", value: 91 },
+          { label: "20s", value: 94 },
+          { label: "30s", value: 92 },
+          { label: "40s", value: 93 },
+        ],
+        engagementScore: 81,
+        engagementLabel: "Good",
+      },
+    },
+    {
+      sessionId: "s2",
+      dateLabel: "18 May 2025",
+      timeLabel: "11:05 AM",
+      session: {
+        sessionId: "s2",
+        dateLabel: "18 May 2025",
+        attentionStatus: "Looking Right",
+        ear: "0.21",
+        blink: "No",
+        yaw: "4.2°",
+        pitch: "0.8°",
+        totalTimeSeconds: 38,
+        focusDistribution: [
+          { name: "Focused", value: 54, color: "#22C55E" },
+          { name: "Looking Away", value: 28, color: "#F59E0B" },
+          { name: "Blink", value: 10, color: "#8B5CF6" },
+          { name: "Eyes Closed", value: 8, color: "#EF4444" },
+        ],
+        focusTime: "17.1 sec",
+        attentionDrifts: 3,
+        longestFocus: "8.2 sec",
+        expectedWord: "Cat",
+        expectedWords: ["Cat"],
+        detectedWord: "Cat",
+        confidence: 92,
+        responseTime: "8.2 sec",
+        speechMatches: [
+          {
+            expectedWord: "Cat",
+            detectedWord: "Cat",
+            confidence: 92,
+            responseTime: "8.2s",
+            found: true,
+          },
+        ],
+        speechOtherWords: [],
+        speechAvailable: true,
+      },
+      analytics: {
+        gazeHeatmap: [
+          [8, 20, 35, 50, 65, 50, 35, 20],
+          [12, 30, 55, 75, 88, 75, 55, 30],
+          [18, 40, 68, 92, 95, 92, 68, 40],
+          [12, 30, 55, 78, 85, 78, 55, 30],
+          [8, 20, 35, 50, 65, 50, 35, 20],
+        ],
+        gazeDistribution: [
+          { name: "Center", value: 48, color: "#2563EB" },
+          { name: "Right", value: 22, color: "#EC4899" },
+          { name: "Up", value: 14, color: "#22C55E" },
+          { name: "Down", value: 10, color: "#F59E0B" },
+          { name: "Left", value: 6, color: "#8B5CF6" },
+        ],
+        totalBlinks: 10,
+        blinkRate: "16/min",
+        headStabilityScore: 86,
+        headMovementLevel: "Low",
+        headMovementTrend: [
+          { label: "0s", value: 82 },
+          { label: "10s", value: 85 },
+          { label: "20s", value: 88 },
+          { label: "30s", value: 84 },
+        ],
+        engagementScore: 72,
+        engagementLabel: "Good",
+      },
+    },
+  ],
   analyticsFooter: {
     gazeHeatmap: [
       [10, 25, 40, 55, 70, 55, 40, 25],
@@ -195,6 +376,7 @@ export const emptyPatientTimeHistoryDashboard: PatientTimeHistoryDashboard = {
   summaryMetrics: [],
   attentionOverTime: [],
   sessionHistory: [],
+  sessionDetails: [],
   latestSession: {
     dateLabel: "—",
     attentionStatus: "—",
@@ -208,9 +390,13 @@ export const emptyPatientTimeHistoryDashboard: PatientTimeHistoryDashboard = {
     attentionDrifts: 0,
     longestFocus: "—",
     expectedWord: "—",
+    expectedWords: [],
     detectedWord: "—",
     confidence: 0,
     responseTime: "—",
+    speechMatches: [],
+    speechOtherWords: [],
+    speechAvailable: false,
   },
   analyticsFooter: {
     gazeHeatmap: [],

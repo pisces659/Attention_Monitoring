@@ -34,9 +34,13 @@ export async function createSession(input: CreateSessionInput): Promise<Session>
   });
 }
 
+import type { SessionCalibration } from "@/types/calibration";
+import { createDefaultSessionCalibration } from "@/types/calibration";
+
 export interface SessionUploadFiles {
   video: File;
-  expectedWord?: string;
+  calibration?: SessionCalibration;
+  stimulusVideoId?: string;
 }
 
 export async function uploadSessionFiles(
@@ -45,8 +49,12 @@ export async function uploadSessionFiles(
 ): Promise<Session> {
   const formData = new FormData();
   formData.append("video", files.video);
-  if (files.expectedWord?.trim()) {
-    formData.append("expected_word", files.expectedWord.trim());
+  formData.append(
+    "calibration_json",
+    JSON.stringify(files.calibration ?? createDefaultSessionCalibration())
+  );
+  if (files.stimulusVideoId) {
+    formData.append("stimulus_video_id", files.stimulusVideoId);
   }
 
   return apiFetch<Session>(API_ENDPOINTS.sessionUpload(sessionId), {

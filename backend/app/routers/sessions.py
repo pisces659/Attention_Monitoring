@@ -166,6 +166,9 @@ async def upload_session_files(
     background_tasks: BackgroundTasks,
     video: UploadFile = File(...),
     expected_word: str = Form(default=""),
+    expected_words: str = Form(default=""),
+    calibration_json: str = Form(default=""),
+    stimulus_video_id: str = Form(default=""),
     auth: AuthContext = Depends(require_doctor_clinic),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
@@ -174,13 +177,17 @@ async def upload_session_files(
     if not video_bytes:
         raise HTTPException(status_code=400, detail="Video file is required.")
 
+    words_input = (expected_words or expected_word or "").strip() or None
+
     upload_service = UploadService()
     await upload_service.start_video_upload(
         db,
         session,
         video=video_bytes,
         filename=video.filename,
-        expected_word=expected_word or None,
+        expected_word=words_input,
+        calibration_json=calibration_json or None,
+        stimulus_video_id=stimulus_video_id or None,
     )
     background_tasks.add_task(upload_service.run_video_analysis, session_id)
 

@@ -16,6 +16,124 @@ def _format_time(value: datetime) -> str:
     return value.strftime("%I:%M %p").lstrip("0")
 
 
+def _session_event_time(session: Session) -> datetime:
+    return (
+        session.completed_at
+        or session.started_at
+        or session.scheduled_at
+        or session.created_at
+    )
+
+
+def _normalize_focus_distribution(detailed_focus: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if detailed_focus and detailed_focus[0].get("value", 0) > 100:
+        total = sum(item["value"] for item in detailed_focus) or 1
+        return [
+            {**item, "value": round((item["value"] / total) * 100)} for item in detailed_focus
+        ]
+    return detailed_focus
+
+
+def _build_speech_payload(speech: dict[str, Any]) -> dict[str, Any]:
+    speech_available = bool(speech.get("available"))
+    speech_matches = speech.get("matches") or []
+    speech_other_words = speech.get("otherWords") or []
+    expected_words = speech.get("expectedWords") or []
+    if not expected_words and speech.get("expectedWord"):
+        expected_words = [
+            word.strip()
+            for word in str(speech["expectedWord"]).split(",")
+            if word.strip()
+        ]
+    if not speech_matches and expected_words:
+        speech_matches = [
+            {
+                "expectedWord": word,
+                "detectedWord": speech.get("detectedWord"),
+                "confidence": speech.get("confidence") or 0,
+                "responseTime": speech.get("responseTime") or "—",
+            }
+            for word in expected_words[:1]
+        ]
+    return {
+        "speech_available": speech_available,
+        "speech_matches": speech_matches,
+        "speech_other_words": speech_other_words,
+        "expected_words": expected_words,
+        "expected_word": speech.get("expectedWord")
+        or ("N/A" if not speech_available else "—"),
+        "detected_word": speech.get("detectedWord")
+        or ("N/A" if not speech_available else "—"),
+        "confidence": speech.get("confidence") if speech_available else None,
+        "response_time": speech.get("responseTime")
+        or ("N/A" if not speech_available else "—"),
+    }
+
+
+def _build_analytics_footer(data: dict[str, Any], metrics: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "gazeHeatmap": data.get("gazeHeatmapMatrix", []),
+        "gazeDistribution": data.get("gazeDistribution", []),
+        "totalBlinks": metrics["blinkCount"],
+        "blinkRate": f"{metrics['averageBlinkRate']}/min",
+        "headStabilityScore": data.get("headStabilityScore", 0),
+        "headMovementLevel": "Low"
+        if data.get("headStabilityScore", 0) >= 85
+        else "Moderate",
+        "headMovementTrend": data.get("headPoseTimeline", []),
+        "engagementScore": data.get("engagementScore", 0),
+        "engagementLabel": data.get("engagementLabel", "Moderate"),
+    }
+
+
+def _build_session_detail(session: Session, data: dict[str, Any]) -> dict[str, Any]:
+    metrics = data["metrics"]
+    latest_frame = data.get("latestFrame", {})
+    speech_payload = _build_speech_payload(data.get("speechMetrics", {}))
+    detailed_focus = _normalize_focus_distribution(
+        data.get("detailedFocusDistribution") or data.get("focusDistribution", [])
+    )
+    event = _session_event_time(session)
+
+    session_payload = {
+        "sessionId": str(session.id),
+        "sessionDisplayId": session.display_id or "",
+        "reportId": str(session.report.id) if session.report else None,
+        "dateLabel": _format_short_date(event),
+        "attentionStatus": latest_frame.get("attentionState", "Unknown"),
+        "ear": str(latest_frame.get("ear", 0)),
+        "blink": "Yes" if latest_frame.get("blink") else "No",
+        "yaw": f"{latest_frame.get('yaw', 0)}°",
+        "pitch": f"{latest_frame.get('pitch', 0)}°",
+        "totalTimeSeconds": data.get("durationSeconds", 0),
+        "focusDistribution": detailed_focus,
+        "focusTime": f"{metrics['focusedDurationSeconds']} sec",
+        "attentionDrifts": metrics["attentionShifts"],
+        "longestFocus": f"{metrics['longestFocusDurationSeconds']} sec",
+        "expectedWord": speech_payload["expected_word"],
+        "expectedWords": speech_payload["expected_words"],
+        "detectedWord": speech_payload["detected_word"],
+        "confidence": speech_payload["confidence"],
+        "responseTime": speech_payload["response_time"],
+        "speechMatches": speech_payload["speech_matches"],
+        "speechOtherWords": speech_payload["speech_other_words"],
+        "speechAvailable": speech_payload["speech_available"],
+        "doctorNotes": session.doctor_notes or "",
+        "rawVideoFileName": session.video_file_name or "",
+        "annotatedVideoFileName": session.processed_video_file_name or "",
+        "rawVideoUrl": session.raw_video_url or "",
+        "annotatedVideoUrl": session.annotated_video_url or "",
+    }
+
+    return {
+        "sessionId": str(session.id),
+        "dateLabel": _format_short_date(event),
+        "timeLabel": _format_time(event),
+        "session": session_payload,
+        "analytics": _build_analytics_footer(data, metrics),
+    }
+
+
 def build_patient_time_history_dashboard(
     patient: Patient,
     sessions: list[Session],
@@ -66,7 +184,7 @@ def build_patient_time_history_dashboard(
         )
         attention_over_time.append(
             {
-                "label": event.strftime("%b %d"),
+                "label": event.strftime("%b %d, %I:%M %p").lstrip("0").replace(" 0", " "),
                 "focusTime": data["metrics"]["focusedDurationSeconds"],
                 "attentionDrift": data["metrics"]["attentionShifts"],
             }
@@ -96,20 +214,10 @@ def build_patient_time_history_dashboard(
             }
         )
 
-    latest_session_obj, latest_data = assessments[0]
-    latest_metrics = latest_data["metrics"]
-    latest_frame = latest_data.get("latestFrame", {})
-    latest_speech = latest_data.get("speechMetrics", {})
-    speech_available = bool(latest_speech.get("available"))
-
-    detailed_focus = latest_data.get("detailedFocusDistribution") or latest_data.get(
-        "focusDistribution", []
-    )
-    if detailed_focus and detailed_focus[0].get("value", 0) > 100:
-        total = sum(item["value"] for item in detailed_focus) or 1
-        detailed_focus = [
-            {**item, "value": round((item["value"] / total) * 100)} for item in detailed_focus
-        ]
+    session_details = [
+        _build_session_detail(session, data) for session, data in assessments
+    ]
+    latest_detail = session_details[0] if session_details else None
 
     return {
         "patient": {
@@ -160,52 +268,9 @@ def build_patient_time_history_dashboard(
         ],
         "attentionOverTime": attention_over_time,
         "sessionHistory": session_history,
-        "latestSession": {
-            "sessionId": str(latest_session_obj.id),
-            "sessionDisplayId": latest_session_obj.display_id or "",
-            "reportId": str(latest_session_obj.report.id)
-            if latest_session_obj.report
-            else None,
-            "dateLabel": _format_short_date(
-                latest_session_obj.completed_at
-                or latest_session_obj.started_at
-                or latest_session_obj.scheduled_at
-                or latest_session_obj.created_at
-            ),
-            "attentionStatus": latest_frame.get("attentionState", "Unknown"),
-            "ear": str(latest_frame.get("ear", 0)),
-            "blink": "Yes" if latest_frame.get("blink") else "No",
-            "yaw": f"{latest_frame.get('yaw', 0)}°",
-            "pitch": f"{latest_frame.get('pitch', 0)}°",
-            "totalTimeSeconds": latest_data.get("durationSeconds", 0),
-            "focusDistribution": detailed_focus,
-            "focusTime": f"{latest_metrics['focusedDurationSeconds']} sec",
-            "attentionDrifts": latest_metrics["attentionShifts"],
-            "longestFocus": f"{latest_metrics['longestFocusDurationSeconds']} sec",
-            "expectedWord": latest_speech.get("expectedWord") or ("N/A" if not speech_available else "—"),
-            "detectedWord": latest_speech.get("detectedWord") or ("N/A" if not speech_available else "—"),
-            "confidence": latest_speech.get("confidence") if speech_available else None,
-            "responseTime": latest_speech.get("responseTime") or ("N/A" if not speech_available else "—"),
-            "speechAvailable": speech_available,
-            "doctorNotes": latest_session_obj.doctor_notes or "",
-            "rawVideoFileName": latest_session_obj.video_file_name or "",
-            "annotatedVideoFileName": latest_session_obj.processed_video_file_name or "",
-            "rawVideoUrl": latest_session_obj.raw_video_url or "",
-            "annotatedVideoUrl": latest_session_obj.annotated_video_url or "",
-        },
-        "analyticsFooter": {
-            "gazeHeatmap": latest_data.get("gazeHeatmapMatrix", []),
-            "gazeDistribution": latest_data.get("gazeDistribution", []),
-            "totalBlinks": latest_metrics["blinkCount"],
-            "blinkRate": f"{latest_metrics['averageBlinkRate']}/min",
-            "headStabilityScore": latest_data.get("headStabilityScore", 0),
-            "headMovementLevel": "Low"
-            if latest_data.get("headStabilityScore", 0) >= 85
-            else "Moderate",
-            "headMovementTrend": latest_data.get("headPoseTimeline", []),
-            "engagementScore": latest_data.get("engagementScore", 0),
-            "engagementLabel": latest_data.get("engagementLabel", "Moderate"),
-        },
+        "sessionDetails": session_details,
+        "latestSession": latest_detail["session"] if latest_detail else _empty_session_payload(),
+        "analyticsFooter": latest_detail["analytics"] if latest_detail else _empty_analytics_footer(),
     }
 
 
@@ -214,6 +279,52 @@ def _calculate_age(dob) -> int:
 
     today = date.today()
     return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+
+
+def _empty_session_payload() -> dict[str, Any]:
+    return {
+        "sessionId": None,
+        "sessionDisplayId": "",
+        "reportId": None,
+        "dateLabel": "—",
+        "attentionStatus": "—",
+        "ear": "—",
+        "blink": "—",
+        "yaw": "—",
+        "pitch": "—",
+        "totalTimeSeconds": 0,
+        "focusDistribution": [],
+        "focusTime": "—",
+        "attentionDrifts": 0,
+        "longestFocus": "—",
+        "expectedWord": "—",
+        "expectedWords": [],
+        "detectedWord": "—",
+        "confidence": 0,
+        "responseTime": "—",
+        "speechMatches": [],
+        "speechOtherWords": [],
+        "speechAvailable": False,
+        "doctorNotes": "",
+        "rawVideoFileName": "",
+        "annotatedVideoFileName": "",
+        "rawVideoUrl": "",
+        "annotatedVideoUrl": "",
+    }
+
+
+def _empty_analytics_footer() -> dict[str, Any]:
+    return {
+        "gazeHeatmap": [],
+        "gazeDistribution": [],
+        "totalBlinks": 0,
+        "blinkRate": "0/min",
+        "headStabilityScore": 0,
+        "headMovementLevel": "—",
+        "headMovementTrend": [],
+        "engagementScore": 0,
+        "engagementLabel": "—",
+    }
 
 
 def _empty_dashboard(patient: Patient, clinic_name: str) -> dict[str, Any]:
@@ -229,40 +340,7 @@ def _empty_dashboard(patient: Patient, clinic_name: str) -> dict[str, Any]:
         "summaryMetrics": [],
         "attentionOverTime": [],
         "sessionHistory": [],
-        "latestSession": {
-            "sessionId": None,
-            "sessionDisplayId": "",
-            "reportId": None,
-            "dateLabel": "—",
-            "attentionStatus": "—",
-            "ear": "—",
-            "blink": "—",
-            "yaw": "—",
-            "pitch": "—",
-            "totalTimeSeconds": 0,
-            "focusDistribution": [],
-            "focusTime": "—",
-            "attentionDrifts": 0,
-            "longestFocus": "—",
-            "expectedWord": "—",
-            "detectedWord": "—",
-            "confidence": 0,
-            "responseTime": "—",
-            "doctorNotes": "",
-            "rawVideoFileName": "",
-            "annotatedVideoFileName": "",
-            "rawVideoUrl": "",
-            "annotatedVideoUrl": "",
-        },
-        "analyticsFooter": {
-            "gazeHeatmap": [],
-            "gazeDistribution": [],
-            "totalBlinks": 0,
-            "blinkRate": "0/min",
-            "headStabilityScore": 0,
-            "headMovementLevel": "—",
-            "headMovementTrend": [],
-            "engagementScore": 0,
-            "engagementLabel": "—",
-        },
+        "sessionDetails": [],
+        "latestSession": _empty_session_payload(),
+        "analyticsFooter": _empty_analytics_footer(),
     }

@@ -7,6 +7,7 @@ import { CalendarClock, Video } from "lucide-react";
 
 import PageHeader from "@/components/dashboard/PageHeader";
 import SessionVideoInput, {
+  type SessionVideoSelection,
   type VideoInputMode,
 } from "@/components/sessions/SessionVideoInput";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ import {
   toDatetimeLocalValue,
   type PatientOption,
 } from "@/services/session-upload-service";
+import { BUILTIN_STIMULUS_ID } from "@/types/stimulus-video";
 import { cn } from "@/lib/utils";
 
 function NewSessionForm() {
@@ -45,8 +47,8 @@ function NewSessionForm() {
   const [sessionAt, setSessionAt] = useState(toDatetimeLocalValue());
   const [notes, setNotes] = useState("");
   const [videoMode, setVideoMode] = useState<VideoInputMode>("upload");
-  const [videoFile, setVideoFile] = useState<File | undefined>();
-  const [expectedWord, setExpectedWord] = useState("Elephant");
+  const [videoSelection, setVideoSelection] = useState<SessionVideoSelection>();
+  const [stimulusVideoId, setStimulusVideoId] = useState(BUILTIN_STIMULUS_ID);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -84,7 +86,7 @@ function NewSessionForm() {
       return;
     }
 
-    if (sessionKind === "pre_recorded" && !videoFile) {
+    if (sessionKind === "pre_recorded" && !videoSelection?.file) {
       setError("Please upload or record a therapy video.");
       return;
     }
@@ -107,8 +109,9 @@ function NewSessionForm() {
       }
 
       const session = await createAndUploadSession(payload, {
-        video: videoFile!,
-        expectedWord,
+        video: videoSelection!.file!,
+        calibration: videoSelection!.calibration,
+        stimulusVideoId: videoSelection!.stimulusVideoId ?? stimulusVideoId,
       });
 
       const params = new URLSearchParams();
@@ -221,10 +224,10 @@ function NewSessionForm() {
               <SessionVideoInput
                 mode={videoMode}
                 onModeChange={setVideoMode}
-                videoFile={videoFile}
-                onVideoFileChange={setVideoFile}
-                expectedWord={expectedWord}
-                onExpectedWordChange={setExpectedWord}
+                selection={videoSelection}
+                onSelectionChange={setVideoSelection}
+                stimulusVideoId={stimulusVideoId}
+                onStimulusVideoIdChange={setStimulusVideoId}
                 disabled={submitting}
               />
             ) : null}

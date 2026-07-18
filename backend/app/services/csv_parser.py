@@ -223,71 +223,103 @@ def _build_detailed_focus_distribution(frames: list[SessionFrame]) -> list[dict[
     ]
 
 
+def _attention_state_to_gaze_zone(state: str) -> str:
+    """Use attention states directly so all dashboard gaze visuals stay aligned."""
+    return state
+
+
+# 8x8 grid positions for gaze-direction heatmap (row, col).
+_GAZE_ZONE_GRID: dict[str, tuple[int, int]] = {
+    "Focused": (3, 3),
+    "Looking Up": (0, 3),
+    "Looking Down": (7, 3),
+    "Looking Left": (1, 1),
+    "Looking Right": (1, 6),
+    "Closed": (3, 3),
+    "Eyes Closed": (3, 3),
+    "Blink": (3, 3),
+}
+
+
+def _gaze_zone_colors() -> dict[str, str]:
+    return {
+        "Focused": "#22C55E",
+        "Looking Up": "#F59E0B",
+        "Looking Down": "#F97316",
+        "Looking Left": "#8B5CF6",
+        "Looking Right": "#EC4899",
+        "Eyes Closed": "#EF4444",
+        "Blink": "#6366F1",
+        "No Face": "#94A3B8",
+        "Closed": "#EF4444",
+    }
+
+
+def _build_gaze_zone_counts(frames: list[SessionFrame]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for frame in frames:
+        zone = _attention_state_to_gaze_zone(frame.attention_state)
+        counts[zone] = counts.get(zone, 0) + 1
+    return counts
+
+
 def _build_gaze_heatmap(frames: list[SessionFrame]) -> list[dict[str, int]]:
     grid_size = 8
+    matrix = [[0 for _ in range(grid_size)] for _ in range(grid_size)]
+
+    for frame in frames:
+        zone = _attention_state_to_gaze_zone(frame.attention_state)
+        if zone == "No Face":
+            continue
+        row, col = _GAZE_ZONE_GRID.get(zone, (3, 3))
+        matrix[row][col] += 1
+
     cells: list[dict[str, int]] = []
-
-    for x in range(grid_size):
-        for y in range(grid_size):
-            x_min, x_max = x / grid_size, (x + 1) / grid_size
-            y_min, y_max = y / grid_size, (y + 1) / grid_size
-            matches = [
-                f
-                for f in frames
-                if x_min <= f.horizontal_ratio < x_max and y_min <= f.vertical_ratio < y_max
-            ]
-            cells.append({"x": x, "y": y, "intensity": len(matches)})
-
-    max_intensity = max((cell["intensity"] for cell in cells), default=1)
-    return [
-        {
-            **cell,
-            "intensity": round((cell["intensity"] / max_intensity) * 100),
-        }
-        for cell in cells
-    ]
+    flat_max = max((value for row in matrix for value in row), default=1)
+    for y in range(grid_size):
+        for x in range(grid_size):
+            intensity = matrix[y][x]
+            cells.append(
+                {
+                    "x": x,
+                    "y": y,
+                    "intensity": round((intensity / flat_max) * 100) if flat_max else 0,
+                }
+            )
+    return cells
 
 
 def _build_gaze_heatmap_matrix(frames: list[SessionFrame]) -> list[list[int]]:
     grid_size = 8
-    matrix: list[list[int]] = []
-    for y in range(grid_size):
-        row: list[int] = []
-        for x in range(grid_size):
-            x_min, x_max = x / grid_size, (x + 1) / grid_size
-            y_min, y_max = y / grid_size, (y + 1) / grid_size
-            matches = [
-                f
-                for f in frames
-                if x_min <= f.horizontal_ratio < x_max and y_min <= f.vertical_ratio < y_max
-            ]
-            row.append(len(matches))
-        matrix.append(row)
+    matrix = [[0 for _ in range(grid_size)] for _ in range(grid_size)]
+
+    for frame in frames:
+        zone = _attention_state_to_gaze_zone(frame.attention_state)
+        if zone == "No Face":
+            continue
+        row, col = _GAZE_ZONE_GRID.get(zone, (3, 3))
+        matrix[row][col] += 1
 
     flat_max = max((value for row in matrix for value in row), default=1)
     return [
-        [round((value / flat_max) * 100) for value in row]
+        [round((value / flat_max) * 100) if flat_max else 0 for value in row]
         for row in matrix
     ]
 
 
 def _build_gaze_distribution(frames: list[SessionFrame]) -> list[dict[str, Any]]:
-    horizontal: dict[str, int] = {}
-    vertical: dict[str, int] = {}
-    for frame in frames:
-        horizontal[frame.horizontal_gaze] = horizontal.get(frame.horizontal_gaze, 0) + 1
-        vertical[frame.vertical_gaze] = vertical.get(frame.vertical_gaze, 0) + 1
-
+    """Gaze distribution — uses the same attention-state zones as the summary donut."""
+    counts = _build_gaze_zone_counts(frames)
+    colors = _gaze_zone_colors()
     total = len(frames) or 1
-    colors = ["#2563EB", "#22C55E", "#F59E0B", "#8B5CF6", "#EC4899"]
-    vertical_items = sorted(vertical.items(), key=lambda item: item[1], reverse=True)
+    items = sorted(counts.items(), key=lambda item: item[1], reverse=True)
     return [
         {
             "name": name,
             "value": round((count / total) * 100),
-            "color": colors[index % len(colors)],
+            "color": colors.get(name, "#94A3B8"),
         }
-        for index, (name, count) in enumerate(vertical_items)
+        for name, count in items
     ]
 
 
@@ -427,19 +459,47 @@ def apply_pipeline_speech_metrics(
     """Merge speech results from the Ram pipeline into assessment JSON."""
     speech = dict(assessment.get("speechMetrics", {}))
     score = pipeline_summary.get("SpeechScore")
+    matches = pipeline_summary.get("SpeechMatches") or []
+    other_words = pipeline_summary.get("SpeechOtherWords") or []
+    expected_words = pipeline_summary.get("ExpectedWords") or []
+    if not expected_words and pipeline_summary.get("ExpectedWord"):
+        expected_words = [
+            word.strip()
+            for word in str(pipeline_summary["ExpectedWord"]).split(",")
+            if word.strip()
+        ]
+
+    first_match = next((match for match in matches if match.get("found")), matches[0] if matches else None)
+    legacy_expected = (
+        ", ".join(expected_words)
+        if expected_words
+        else pipeline_summary.get("ExpectedWord")
+    )
+
     speech.update(
         {
             "available": True,
             "speechScore": int(score) if score is not None else None,
             "pronunciationAccuracy": int(score) if score is not None else None,
-            "completionPercent": 100 if pipeline_summary.get("SpeechFound") else 0,
-            "correctCount": 1 if pipeline_summary.get("SpeechFound") else 0,
-            "partialCount": 0 if pipeline_summary.get("SpeechFound") else 1,
-            "incorrectCount": 0,
-            "expectedWord": pipeline_summary.get("ExpectedWord"),
-            "detectedWord": pipeline_summary.get("RecognizedWord") or None,
+            "completionPercent": pipeline_summary.get("SpeechCompletionPercent", 0),
+            "correctCount": pipeline_summary.get("SpeechCorrectCount", 0),
+            "partialCount": pipeline_summary.get("SpeechPartialCount", 0),
+            "incorrectCount": pipeline_summary.get("SpeechIncorrectCount", 0),
+            "expectedWord": legacy_expected,
+            "expectedWords": expected_words,
+            "detectedWord": (
+                first_match.get("detectedWord")
+                if first_match and first_match.get("found")
+                else pipeline_summary.get("RecognizedWord") or None
+            ),
             "confidence": score,
-            "responseTime": pipeline_summary.get("ResponseTime"),
+            "responseTime": (
+                first_match.get("responseTime")
+                if first_match and first_match.get("found")
+                else pipeline_summary.get("ResponseTime")
+            ),
+            "matches": matches,
+            "otherWords": other_words,
         }
     )
     assessment["speechMetrics"] = speech

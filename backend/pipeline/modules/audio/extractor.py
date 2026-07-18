@@ -5,9 +5,9 @@ from pipeline.ffmpeg_utils import extract_audio_wav
 
 
 class AudioExtractor:
-    def extract(self, video_path, output_audio):
+    def extract(self, video_path, output_audio, *, start_seconds: float = 0.0):
         try:
-            extract_audio_wav(video_path, output_audio)
+            extract_audio_wav(video_path, output_audio, start_seconds=start_seconds)
         except RuntimeError:
             self._write_silent_wav(output_audio, duration_seconds=1.0)
 

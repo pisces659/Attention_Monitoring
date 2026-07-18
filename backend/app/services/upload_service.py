@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import timedelta
 from uuid import UUID
@@ -11,9 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import SessionLocal
-from app.models import Assessment, Report, Session, SessionStatus
+from app.models import Assessment, Report, Session, SessionStatus, StimulusVideo
 from app.services.csv_parser import apply_pipeline_speech_metrics, parse_csv_to_assessment
 from app.services.storage_service import StorageService
+from pipeline.calibration import analysis_start_seconds, save_calibration
+from pipeline.ffmpeg_utils import trim_video_segment
+from pipeline.modules.audio.similarity import parse_expected_words
+
 from app.services.video_analysis_service import (
     processing_dir,
     run_analysis,
@@ -21,7 +26,7 @@ from app.services.video_analysis_service import (
 )
 
 logger = logging.getLogger(__name__)
-DEFAULT_EXPECTED_WORD = "Elephant"
+DEFAULT_KEYWORDS = ["red", "square", "elephant", "green", "star"]
 
 
 class UploadService:
@@ -36,6 +41,9 @@ class UploadService:
         video: bytes,
         filename: str | None,
         expected_word: str | None = None,
+        expected_words: list[str] | None = None,
+        calibration_json: str | None = None,
+        stimulus_video_id: str | None = None,
     ) -> Session:
         session.status = SessionStatus.UPLOADING
         await db.flush()
@@ -50,12 +58,114 @@ class UploadService:
         session.raw_video_url = urls["raw_video_url"]
         session.video_file_name = filename or input_path.name
         session.status = SessionStatus.PROCESSING
-        word = (expected_word or DEFAULT_EXPECTED_WORD).strip() or DEFAULT_EXPECTED_WORD
-        (work_dir := processing_dir(session.id)).mkdir(parents=True, exist_ok=True)
-        (work_dir / "expected_word.txt").write_text(word, encoding="utf-8")
+
+        stimulus_meta = await self._resolve_stimulus_meta(
+            db, stimulus_video_id=stimulus_video_id
+        )
+        if stimulus_video_id and stimulus_video_id != "builtin-identification":
+            try:
+                session.stimulus_video_id = UUID(stimulus_video_id)
+            except ValueError:
+                session.stimulus_video_id = None
+
+        words = self._resolve_expected_words(
+            expected_words,
+            expected_word,
+            stimulus_meta.get("keywords"),
+            stimulus_meta.get("focusAreas"),
+        )
+        word_blob = ", ".join(words)
+        work_dir = processing_dir(session.id)
+        work_dir.mkdir(parents=True, exist_ok=True)
+        (work_dir / "expected_word.txt").write_text(word_blob, encoding="utf-8")
+        (work_dir / "stimulus_meta.json").write_text(
+            json.dumps(stimulus_meta, indent=2), encoding="utf-8"
+        )
+
+        calibration = save_calibration(work_dir, calibration_json)
+        trim_start = analysis_start_seconds(calibration)
+        if trim_start > 0:
+            try:
+                trim_video_segment(
+                    input_path,
+                    work_dir / "stimulus_segment.webm",
+                    start_seconds=trim_start,
+                )
+            except RuntimeError as exc:
+                logger.warning("Could not extract stimulus segment: %s", exc)
+
         await db.commit()
         await db.refresh(session)
         return session
+
+    @staticmethod
+    def _keywords_from_focus_areas(focus_areas: list[dict] | None) -> list[str]:
+        if not focus_areas:
+            return []
+        return [kw for area in focus_areas for kw in area.get("keywords", [])]
+
+    @staticmethod
+    def _resolve_expected_words(
+        expected_words: list[str] | None,
+        expected_word: str | None,
+        stimulus_keywords: list[str] | None,
+        focus_areas: list[dict] | None = None,
+    ) -> list[str]:
+        from_focus = UploadService._keywords_from_focus_areas(focus_areas)
+        if from_focus:
+            return from_focus
+        if stimulus_keywords:
+            return stimulus_keywords
+        if expected_words:
+            words = parse_expected_words(expected_words)
+            if words:
+                return words
+        if expected_word and expected_word.strip():
+            words = parse_expected_words(expected_word.strip())
+            if words:
+                return words
+        return list(DEFAULT_KEYWORDS)
+
+    @staticmethod
+    async def _resolve_stimulus_meta(
+        db: AsyncSession, *, stimulus_video_id: str | None
+    ) -> dict:
+        from app.routers.stimulus_videos import BUILTIN_DEFAULT
+
+        if not stimulus_video_id or stimulus_video_id == BUILTIN_DEFAULT["id"]:
+            return {
+                "id": BUILTIN_DEFAULT["id"],
+                "title": BUILTIN_DEFAULT["title"],
+                "keywords": BUILTIN_DEFAULT["keywords"],
+                "focusAreas": BUILTIN_DEFAULT["focusAreas"],
+                "durationMs": BUILTIN_DEFAULT["durationMs"],
+            }
+
+        try:
+            parsed_id = UUID(stimulus_video_id)
+        except ValueError:
+            return {
+                "id": BUILTIN_DEFAULT["id"],
+                "keywords": BUILTIN_DEFAULT["keywords"],
+                "focusAreas": BUILTIN_DEFAULT["focusAreas"],
+            }
+
+        video = await db.get(StimulusVideo, parsed_id)
+        if not video or not video.is_active:
+            return {
+                "id": BUILTIN_DEFAULT["id"],
+                "keywords": BUILTIN_DEFAULT["keywords"],
+                "focusAreas": BUILTIN_DEFAULT["focusAreas"],
+            }
+
+        return {
+            "id": str(video.id),
+            "title": video.title,
+            "keywords": video.keywords or [],
+            "focusAreas": video.focus_areas or [],
+            "durationMs": video.duration_ms,
+            "videoUrl": video.video_url,
+        }
 
     async def run_video_analysis(self, session_id: UUID) -> None:
         async with SessionLocal() as db:
@@ -72,15 +182,17 @@ class UploadService:
             try:
                 logger.info("Background analysis started for session %s", session_id)
                 expected_word_path = work_dir / "expected_word.txt"
-                expected_word = (
-                    expected_word_path.read_text(encoding="utf-8").strip()
+                expected_words = (
+                    parse_expected_words(expected_word_path.read_text(encoding="utf-8").strip())
                     if expected_word_path.exists()
-                    else DEFAULT_EXPECTED_WORD
+                    else list(DEFAULT_KEYWORDS)
                 )
+                if not expected_words:
+                    expected_words = list(DEFAULT_KEYWORDS)
                 result = await run_analysis(
                     input_files[0],
                     session_id,
-                    expected_word=expected_word,
+                    expected_words=expected_words,
                 )
 
                 csv_text = result.csv_path.read_text(encoding="utf-8")

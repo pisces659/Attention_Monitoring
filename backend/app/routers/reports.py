@@ -17,6 +17,52 @@ from app.serializers import report_to_json, session_to_json, patient_to_json
 router = APIRouter(prefix="/reports", tags=["reports"])
 
 
+def _speech_words_from_metrics(speech_metrics: dict) -> list[dict]:
+    matches = speech_metrics.get("matches") or []
+    if matches:
+        words = []
+        for match in matches:
+            confidence = match.get("confidence") or 0
+            pronunciation = int(confidence)
+            if match.get("found"):
+                if confidence >= 90:
+                    result = "correct"
+                elif confidence >= 60:
+                    result = "partial"
+                else:
+                    result = "incorrect"
+            else:
+                result = "incorrect"
+            words.append(
+                {
+                    "timestamp": match.get("responseTime") or "—",
+                    "expectedWord": match.get("expectedWord") or "—",
+                    "recognizedWord": match.get("detectedWord") or "—",
+                    "confidence": confidence / 100 if confidence > 1 else confidence,
+                    "pronunciationAccuracy": pronunciation,
+                    "result": result,
+                }
+            )
+        return words
+
+    expected_word = speech_metrics.get("expectedWord")
+    if not expected_word or not speech_metrics.get("available"):
+        return []
+
+    confidence = speech_metrics.get("confidence") or 0
+    pronunciation = int(confidence)
+    return [
+        {
+            "timestamp": str(speech_metrics.get("responseTime") or "—"),
+            "expectedWord": expected_word,
+            "recognizedWord": speech_metrics.get("detectedWord") or "—",
+            "confidence": confidence / 100 if confidence > 1 else confidence,
+            "pronunciationAccuracy": pronunciation,
+            "result": "correct" if pronunciation >= 90 else "partial" if pronunciation >= 60 else "incorrect",
+        }
+    ]
+
+
 def _speech_score(speech: dict) -> int:
     score = speech.get("speechScore")
     if speech.get("available") and score is not None:
@@ -119,7 +165,7 @@ async def _build_session_report(db: AsyncSession, report_id: UUID, clinic_id: UU
         "patient": patient_to_json(patient, doctor_name=""),
         "attentionMetrics": metrics,
         "speechMetrics": speech_metrics,
-        "speechWords": [],
+        "speechWords": _speech_words_from_metrics(speech_metrics),
         "attentionTimeline": assessment.get("attentionTimeline", []),
         "blinkTimeline": assessment.get("blinkTimeline", []),
         "headPoseTimeline": assessment.get("headPoseTimeline", []),

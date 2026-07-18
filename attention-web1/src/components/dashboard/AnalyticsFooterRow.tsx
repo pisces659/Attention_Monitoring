@@ -41,6 +41,7 @@ export default function AnalyticsFooterRow({ analytics }: AnalyticsFooterRowProp
       <Card className="border-0 shadow-sm ring-1 ring-slate-100">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">Gaze Heatmap</CardTitle>
+          <p className="text-xs text-slate-500">Directional gaze density</p>
         </CardHeader>
         <CardContent>
           <div className="grid gap-1">
@@ -63,6 +64,7 @@ export default function AnalyticsFooterRow({ analytics }: AnalyticsFooterRowProp
       <Card className="border-0 shadow-sm ring-1 ring-slate-100">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">Gaze Distribution</CardTitle>
+          <p className="text-xs text-slate-500">Matches attention summary</p>
         </CardHeader>
         <CardContent>
           <div className="h-[140px]">

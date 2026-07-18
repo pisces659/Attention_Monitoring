@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import time
@@ -13,10 +14,12 @@ os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
 import cv2
 
+from pipeline.calibration import load_calibration
+from pipeline.calibration_baseline import apply_session_calibration_baseline
 from pipeline.modules import visualization as viz
 from pipeline.modules.assessment.attention_engine import AttentionEngine
 from pipeline.modules.audio.extractor import AudioExtractor
-from pipeline.modules.audio.similarity import Similarity
+from pipeline.modules.audio.similarity import Similarity, parse_expected_words
 from pipeline.modules.report.report import Report
 from pipeline.modules.video_export import VideoExporter
 from pipeline.modules.video_loader import VideoLoader
@@ -47,16 +50,47 @@ class AnalysisResult:
     pipeline_summary: dict
 
 
+def _load_focus_areas(output_dir: Path) -> list[dict] | None:
+    meta_path = output_dir.parent / "stimulus_meta.json"
+    if not meta_path.exists():
+        return None
+    try:
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    focus_areas = meta.get("focusAreas")
+    return focus_areas if isinstance(focus_areas, list) and focus_areas else None
+
+
+def _keywords_from_focus_areas(focus_areas: list[dict]) -> list[str]:
+    return [kw for area in focus_areas for kw in area.get("keywords", [])]
+
+
 def analyze_video(
     video_path: str | Path,
     output_dir: str | Path,
     *,
     expected_word: str = "Elephant",
+    expected_words: list[str] | None = None,
+    focus_areas: list[dict] | None = None,
     show_landmarks: bool = True,
+    analysis_start_seconds: float = 0.0,
 ) -> AnalysisResult:
     video_path = ensure_opencv_readable(Path(video_path))
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    if focus_areas is None:
+        focus_areas = _load_focus_areas(output_dir)
+
+    words = expected_words if expected_words else parse_expected_words(expected_word)
+    if not words:
+        words = [expected_word.strip() or "Elephant"]
+
+    if focus_areas:
+        focus_keywords = _keywords_from_focus_areas(focus_areas)
+        if focus_keywords:
+            words = focus_keywords
 
     video = VideoLoader(str(video_path))
     source_duration = video.duration_seconds or probe_duration_seconds(Path(video_path))
@@ -76,7 +110,13 @@ def analyze_video(
     iris = IrisTracker()
     blink_detector = BlinkDetector()
     head_pose = HeadPoseEstimator()
-    gaze = GazeEstimator()
+    session_calibration = load_calibration(output_dir.parent)
+    session_calibration = apply_session_calibration_baseline(
+        output_dir.parent,
+        video_path,
+        session_calibration,
+    )
+    gaze = GazeEstimator.from_calibration(session_calibration)
     attention = AttentionEngine()
     audio_extractor = AudioExtractor()
     similarity = Similarity()
@@ -91,8 +131,10 @@ def analyze_video(
     )
 
     frame_no = 0
+    output_frame_no = 0
     start = time.time()
     frame_time = 1 / video.fps if video.fps else 1 / 30
+    analysis_started = analysis_start_seconds <= 0
 
     ear = 0.0
     blink = False
@@ -110,7 +152,22 @@ def analyze_video(
                 break
 
             frame_no += 1
-            timestamp_ms = int((frame_no / video.fps) * 1000) if video.fps else frame_no * 33
+            timestamp = frame_no / video.fps if video.fps else frame_no * frame_time
+
+            if timestamp < analysis_start_seconds:
+                continue
+
+            if not analysis_started:
+                attention = AttentionEngine()
+                blink_detector = BlinkDetector()
+                analysis_started = True
+                logger.info(
+                    "Analysis output begins at %.2fs (frame %s)",
+                    analysis_start_seconds,
+                    frame_no,
+                )
+
+            timestamp_ms = int(timestamp * 1000)
             results = detector.process(frame, timestamp_ms)
             found = False
 
@@ -154,12 +211,13 @@ def analyze_video(
 
             elapsed = time.time() - start
             fps = frame_no / elapsed if elapsed > 0 else 0
-            viz.draw_info(frame, frame_no, fps)
+            viz.draw_info(frame, output_frame_no + 1, fps)
 
-            timestamp = frame_no / video.fps if video.fps else frame_no * frame_time
+            output_time = round(timestamp - analysis_start_seconds, 3)
+            output_frame_no += 1
             frame_data = {
-                "Frame": frame_no,
-                "Time": round(timestamp, 3),
+                "Frame": output_frame_no,
+                "Time": output_time,
                 "FaceDetected": found,
                 "LeftIrisX": left_center[0] if found else 0.0,
                 "LeftIrisY": left_center[1] if found else 0.0,
@@ -185,8 +243,9 @@ def analyze_video(
         video_writer.release()
         detector.close()
 
-    if source_duration and frame_no > 0:
-        actual_fps = clamp_fps(frame_no / source_duration)
+    if source_duration and output_frame_no > 0:
+        stimulus_duration = max(source_duration - analysis_start_seconds, 0.01)
+        actual_fps = clamp_fps(output_frame_no / stimulus_duration)
         if abs(actual_fps - video.fps) > 0.5:
             logger.info(
                 "Re-timing annotated video from %.2f fps to %.2f fps",
@@ -197,24 +256,50 @@ def analyze_video(
             reencode_video_with_fps(annotated_path, corrected_path, actual_fps)
             annotated_path = corrected_path
 
-    logger.info("Frame analysis complete (%s frames). Merging audio...", frame_no)
-    exporter.merge_audio(str(video_path), str(annotated_path), str(final_path))
+    logger.info("Frame analysis complete (%s output frames). Merging audio...", output_frame_no)
+    exporter.merge_audio(
+        str(video_path),
+        str(annotated_path),
+        str(final_path),
+        audio_start_seconds=analysis_start_seconds,
+    )
 
     logger.info("Extracting audio and running speech recognition...")
-    audio_extractor.extract(str(video_path), str(audio_path))
+    audio_extractor.extract(
+        str(video_path),
+        str(audio_path),
+        start_seconds=analysis_start_seconds,
+    )
     from pipeline.modules.audio.speech import SpeechRecognizer
 
     speech = SpeechRecognizer()
     _recognized, speech_segments = speech.recognize(str(audio_path))
-    match = similarity.find_keyword(expected_word, speech_segments)
+    if focus_areas:
+        from pipeline.modules.audio.timed_matching import match_focus_areas
+
+        speech_result = match_focus_areas(focus_areas, speech_segments)
+    else:
+        speech_result = similarity.match_expected_words(words, speech_segments)
+    first_match = speech_result.get("firstMatch")
 
     pipeline_summary = attention.summary()
-    pipeline_summary["ExpectedWord"] = expected_word
-    pipeline_summary["RecognizedWord"] = match["Text"]
-    pipeline_summary["SpeechScore"] = match["Score"]
-    pipeline_summary["ResponseTime"] = match["Start"]
-    pipeline_summary["SpeechFound"] = match["Found"]
+    pipeline_summary["ExpectedWords"] = speech_result["expectedWords"]
+    pipeline_summary["ExpectedWord"] = ", ".join(speech_result["expectedWords"])
+    pipeline_summary["SpeechMatches"] = speech_result["matches"]
+    pipeline_summary["SpeechOtherWords"] = speech_result["otherWords"]
+    pipeline_summary["RecognizedWord"] = (
+        first_match.get("detectedWord") if first_match and first_match.get("found") else ""
+    )
+    pipeline_summary["SpeechScore"] = speech_result["speechScore"]
+    pipeline_summary["ResponseTime"] = (
+        first_match.get("responseTimeSeconds") if first_match else None
+    )
+    pipeline_summary["SpeechFound"] = any(match.get("found") for match in speech_result["matches"])
     pipeline_summary["SpeechSegments"] = speech_segments
+    pipeline_summary["SpeechCorrectCount"] = speech_result["correctCount"]
+    pipeline_summary["SpeechPartialCount"] = speech_result["partialCount"]
+    pipeline_summary["SpeechIncorrectCount"] = speech_result["incorrectCount"]
+    pipeline_summary["SpeechCompletionPercent"] = speech_result["completionPercent"]
 
     report.save(pipeline_summary)
 

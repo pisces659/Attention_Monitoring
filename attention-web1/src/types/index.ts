@@ -172,7 +172,21 @@ export interface AttentionMetrics {
   screenEngagementPercent: number;
 }
 
+export interface SpeechWordMatch {
+  expectedWord: string;
+  detectedWord: string | null;
+  confidence: number;
+  responseTime: string;
+  found?: boolean;
+}
+
+export interface SpeechOtherWord {
+  word: string;
+  confidence: number;
+}
+
 export interface SpeechMetrics {
+  available?: boolean;
   speechScore: number;
   pronunciationAccuracy: number;
   completionPercent: number;
@@ -180,6 +194,13 @@ export interface SpeechMetrics {
   partialCount: number;
   incorrectCount: number;
   timeline: TrendPoint[];
+  expectedWord?: string | null;
+  expectedWords?: string[];
+  detectedWord?: string | null;
+  confidence?: number | null;
+  responseTime?: string | number | null;
+  matches?: SpeechWordMatch[];
+  otherWords?: SpeechOtherWord[];
 }
 
 export interface CsvSessionMetrics {

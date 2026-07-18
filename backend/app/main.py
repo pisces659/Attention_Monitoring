@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
 from app.config import get_settings
-from app.routers import analytics, auth, clinics, dashboard, doctors, patients, reports, sessions
+from app.routers import analytics, auth, clinics, dashboard, doctors, patients, reports, sessions, stimulus_videos
 
 settings = get_settings()
 
@@ -50,6 +50,7 @@ app.include_router(sessions.router, prefix=api_prefix)
 app.include_router(reports.router, prefix=api_prefix)
 app.include_router(dashboard.router, prefix=api_prefix)
 app.include_router(analytics.router, prefix=api_prefix)
+app.include_router(stimulus_videos.router, prefix=api_prefix)
 
 uploads_dir = Path(__file__).resolve().parents[1] / "uploads"
 if uploads_dir.exists():

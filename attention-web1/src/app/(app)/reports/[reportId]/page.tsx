@@ -185,7 +185,7 @@ export default async function ReportDetailPage({
         <CardHeader>
           <CardTitle>Speech word analysis</CardTitle>
           <CardDescription>
-            Word-level pronunciation results from the session export.
+            Expected words matched against detected speech from the session.
           </CardDescription>
         </CardHeader>
         <CardContent className="px-0 pb-2">
@@ -193,28 +193,46 @@ export default async function ReportDetailPage({
             <table className="w-full min-w-[720px] text-left text-sm">
               <thead>
                 <tr className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
-                  <th className="px-6 py-3 font-medium">Time</th>
-                  <th className="px-4 py-3 font-medium">Expected</th>
-                  <th className="px-4 py-3 font-medium">Recognized</th>
+                  <th className="px-6 py-3 font-medium">Expected</th>
+                  <th className="px-4 py-3 font-medium">Detected</th>
                   <th className="px-4 py-3 font-medium">Confidence</th>
-                  <th className="px-4 py-3 font-medium">Accuracy</th>
+                  <th className="px-4 py-3 font-medium">Response Time</th>
                   <th className="px-6 py-3 font-medium">Result</th>
                 </tr>
               </thead>
               <tbody>
                 {speechWords.map((word) => (
-                  <tr key={`${word.timestamp}-${word.expectedWord}`} className="border-b border-border/60 last:border-b-0">
-                    <td className="px-6 py-3 text-muted-foreground">{word.timestamp}</td>
-                    <td className="px-4 py-3">{word.expectedWord}</td>
+                  <tr key={`${word.expectedWord}-${word.timestamp}`} className="border-b border-border/60 last:border-b-0">
+                    <td className="px-6 py-3">{word.expectedWord}</td>
                     <td className="px-4 py-3">{word.recognizedWord}</td>
                     <td className="px-4 py-3">{Math.round(word.confidence * 100)}%</td>
-                    <td className="px-4 py-3">{word.pronunciationAccuracy}%</td>
+                    <td className="px-4 py-3 text-muted-foreground">{word.timestamp}</td>
                     <td className="px-6 py-3 capitalize">{word.result}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          {(speechMetrics as { otherWords?: { word: string; confidence: number }[] }).otherWords
+            ?.length ? (
+            <div className="border-t border-border px-6 py-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Other detected words
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {(
+                  speechMetrics as { otherWords: { word: string; confidence: number }[] }
+                ).otherWords.map((item) => (
+                  <span
+                    key={item.word}
+                    className="rounded-full bg-muted px-2.5 py-1 text-xs text-foreground"
+                  >
+                    {item.word} ({item.confidence}%)
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
       ) : null}

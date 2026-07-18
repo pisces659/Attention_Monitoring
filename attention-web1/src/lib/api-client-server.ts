@@ -46,11 +46,21 @@ export async function serverApiFetch<T>(
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers,
-    cache: "no-store",
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers,
+      cache: "no-store",
+    });
+  } catch (error) {
+    const detail =
+      error instanceof Error ? error.message : "Network request failed";
+    throw new ApiError(
+      `Cannot reach API at ${API_BASE_URL}. Start the backend with backend/run_dev.ps1. (${detail})`,
+      503
+    );
+  }
 
   if (!response.ok) {
     const body = await response.text();

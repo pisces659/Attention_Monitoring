@@ -167,12 +167,34 @@ def convert_to_mp4(source: Path, destination: Path) -> Path:
     return destination
 
 
-def extract_audio_wav(video_path: str | Path, output_audio: str | Path) -> None:
+def trim_video_segment(
+    source: str | Path,
+    destination: str | Path,
+    *,
+    start_seconds: float = 0.0,
+) -> None:
+    destination = Path(destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    args = ["-y"]
+    if start_seconds > 0:
+        args.extend(["-ss", f"{start_seconds:.3f}"])
+    args.extend(["-i", str(source), "-c", "copy", str(destination)])
+    _run_ffmpeg(args)
+
+
+def extract_audio_wav(
+    video_path: str | Path,
+    output_audio: str | Path,
+    *,
+    start_seconds: float = 0.0,
+) -> None:
     output_audio = Path(output_audio)
     output_audio.parent.mkdir(parents=True, exist_ok=True)
-    _run_ffmpeg(
+    args = ["-y"]
+    if start_seconds > 0:
+        args.extend(["-ss", f"{start_seconds:.3f}"])
+    args.extend(
         [
-            "-y",
             "-i",
             str(video_path),
             "-vn",
@@ -185,12 +207,15 @@ def extract_audio_wav(video_path: str | Path, output_audio: str | Path) -> None:
             str(output_audio),
         ]
     )
+    _run_ffmpeg(args)
 
 
 def merge_video_audio(
     original_video: str | Path,
     annotated_video: str | Path,
     output_video: str | Path,
+    *,
+    audio_start_seconds: float = 0.0,
 ) -> None:
     output_video = Path(output_video)
     output_video.parent.mkdir(parents=True, exist_ok=True)
@@ -203,13 +228,13 @@ def merge_video_audio(
     has_audio = "Audio:" in (probe.stderr or "")
 
     if has_audio:
+        audio_input = ["-ss", f"{audio_start_seconds:.3f}", "-i", str(original_video)] if audio_start_seconds > 0 else ["-i", str(original_video)]
         _run_ffmpeg(
             [
                 "-y",
                 "-i",
                 str(annotated_video),
-                "-i",
-                str(original_video),
+                *audio_input,
                 "-map",
                 "0:v:0",
                 "-map",

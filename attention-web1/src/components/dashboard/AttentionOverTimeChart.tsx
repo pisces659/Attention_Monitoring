@@ -23,6 +23,42 @@ interface AttentionOverTimeChartProps {
   data: DualTrendPoint[];
 }
 
+interface ChartTooltipProps {
+  active?: boolean;
+  payload?: Array<{
+    dataKey?: string;
+    name?: string;
+    value?: number;
+    color?: string;
+  }>;
+  label?: string;
+}
+
+function ChartTooltip({ active, payload, label }: ChartTooltipProps) {
+  if (!active || !payload?.length) {
+    return null;
+  }
+
+  const focusEntry = payload.find((entry) => entry.dataKey === "focusTime");
+  const driftEntry = payload.find((entry) => entry.dataKey === "attentionDrift");
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-lg">
+      <p className="mb-2 font-medium text-slate-900">{label}</p>
+      {focusEntry ? (
+        <p className="text-[#2563EB]">
+          Focus Time (sec): {focusEntry.value}
+        </p>
+      ) : null}
+      {driftEntry ? (
+        <p className="text-[#F97316]">
+          Attention Drift (count): {driftEntry.value}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export default function AttentionOverTimeChart({ data }: AttentionOverTimeChartProps) {
   return (
     <Card className="border-0 shadow-sm ring-1 ring-slate-100">
@@ -37,7 +73,8 @@ export default function AttentionOverTimeChart({ data }: AttentionOverTimeChartP
               dataKey="label"
               tickLine={false}
               axisLine={false}
-              tick={{ fill: "#64748B", fontSize: 12 }}
+              tick={{ fill: "#64748B", fontSize: 11 }}
+              interval="preserveStartEnd"
             />
             <YAxis
               yAxisId="left"
@@ -64,13 +101,7 @@ export default function AttentionOverTimeChart({ data }: AttentionOverTimeChartP
                 style: { fill: "#64748B", fontSize: 11 },
               }}
             />
-            <Tooltip
-              contentStyle={{
-                borderRadius: "12px",
-                border: "1px solid #E2E8F0",
-                boxShadow: "0 8px 24px rgba(15, 23, 42, 0.08)",
-              }}
-            />
+            <Tooltip content={<ChartTooltip />} />
             <Legend
               verticalAlign="top"
               align="right"
@@ -86,6 +117,7 @@ export default function AttentionOverTimeChart({ data }: AttentionOverTimeChartP
               strokeWidth={2.5}
               dot={{ r: 4, fill: "#2563EB" }}
               activeDot={{ r: 6 }}
+              isAnimationActive={false}
             />
             <Line
               yAxisId="right"
@@ -96,6 +128,7 @@ export default function AttentionOverTimeChart({ data }: AttentionOverTimeChartP
               strokeWidth={2.5}
               dot={{ r: 4, fill: "#F97316" }}
               activeDot={{ r: 6 }}
+              isAnimationActive={false}
             />
           </LineChart>
         </ResponsiveContainer>

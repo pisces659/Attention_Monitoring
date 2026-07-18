@@ -38,4 +38,6 @@ export const API_ENDPOINTS = {
       ? `/analytics/summary?sessionId=${sessionId}`
       : "/analytics/summary",
   compareSessions: (a: string, b: string) => `/sessions/compare?a=${a}&b=${b}`,
+  stimulusVideos: "/stimulus-videos",
+  stimulusVideo: (id: string) => `/stimulus-videos/${id}`,
 } as const;

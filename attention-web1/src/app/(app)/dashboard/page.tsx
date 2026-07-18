@@ -1,6 +1,5 @@
-import AnalyticsFooterRow from "@/components/dashboard/AnalyticsFooterRow";
 import AttentionOverTimeChart from "@/components/dashboard/AttentionOverTimeChart";
-import LatestSessionPanel from "@/components/dashboard/LatestSessionPanel";
+import DashboardSessionSection from "@/components/dashboard/DashboardSessionSection";
 import PatientTimeHistoryHeader from "@/components/dashboard/PatientTimeHistoryHeader";
 import SessionHistoryTable from "@/components/dashboard/SessionHistoryTable";
 import SummaryMetricCards from "@/components/dashboard/SummaryMetricCards";
@@ -33,9 +32,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         <SessionHistoryTable sessions={dashboard.sessionHistory} />
       </section>
 
-      <LatestSessionPanel session={dashboard.latestSession} />
-
-      <AnalyticsFooterRow analytics={dashboard.analyticsFooter} />
+      <DashboardSessionSection sessions={dashboard.sessionDetails ?? []} />
     </div>
   );
 }

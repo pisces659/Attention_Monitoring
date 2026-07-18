@@ -191,6 +191,9 @@ class Session(Base):
     scheduled_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    stimulus_video_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("stimulus_videos.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -234,6 +237,27 @@ class Report(Base):
     )
 
     session: Mapped["Session"] = relationship(back_populates="report")
+
+
+class StimulusVideo(Base):
+    __tablename__ = "stimulus_videos"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    clinic_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("clinics.id", ondelete="CASCADE"), nullable=True
+    )
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    video_url: Mapped[str] = mapped_column(Text, nullable=False)
+    keywords: Mapped[list[str]] = mapped_column(JSON, default=list)
+    focus_areas: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    duration_ms: Mapped[Optional[int]] = mapped_column()
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class ClinicSettings(Base):

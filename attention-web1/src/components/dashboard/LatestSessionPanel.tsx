@@ -21,21 +21,54 @@ import type { LatestSessionData } from "@/mock/patient-dashboard";
 
 interface LatestSessionPanelProps {
   session: LatestSessionData;
+  heading?: string;
 }
 
-export default function LatestSessionPanel({ session }: LatestSessionPanelProps) {
+export default function LatestSessionPanel({
+  session,
+  heading,
+}: LatestSessionPanelProps) {
   const reportHref = session.reportId
     ? `/reports/${session.reportId}`
     : session.sessionId
       ? `/sessions/${session.sessionId}`
       : "/sessions";
   const speechAvailable = session.speechAvailable ?? false;
+  const speechMatches =
+    session.speechMatches ??
+    (session.expectedWords?.length
+      ? session.expectedWords.map((word) => ({
+          expectedWord: word,
+          detectedWord: session.detectedWord === "—" || session.detectedWord === "N/A"
+            ? null
+            : session.detectedWord,
+          confidence: session.confidence ?? 0,
+          responseTime: session.responseTime,
+        }))
+      : session.expectedWord && session.expectedWord !== "—" && session.expectedWord !== "N/A"
+        ? [
+            {
+              expectedWord: session.expectedWord,
+              detectedWord:
+                session.detectedWord === "—" || session.detectedWord === "N/A"
+                  ? null
+                  : session.detectedWord,
+              confidence: session.confidence ?? 0,
+              responseTime: session.responseTime,
+            },
+          ]
+        : []);
+  const speechOtherWords = session.speechOtherWords ?? [];
 
   return (
-    <section aria-label="Latest session details" className="space-y-4">
-      <h2 className="text-lg font-semibold text-slate-900">
-        Latest Session ({session.dateLabel})
-      </h2>
+    <section aria-label="Session details" className="space-y-4">
+      {heading ? (
+        <h3 className="sr-only">{heading}</h3>
+      ) : (
+        <h2 className="text-lg font-semibold text-slate-900">
+          Latest Session ({session.dateLabel})
+        </h2>
+      )}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.9fr)_minmax(0,0.9fr)]">
         <Card className="overflow-hidden border-0 shadow-sm ring-1 ring-slate-100">
@@ -43,29 +76,14 @@ export default function LatestSessionPanel({ session }: LatestSessionPanelProps)
             <CardTitle className="text-base">Session Video</CardTitle>
           </CardHeader>
           <CardContent className="pb-5">
-            <div className="relative">
-              <SessionVideoPlayer
-                src={session.annotatedVideoUrl}
-                fallbackSrc={session.rawVideoUrl}
-                title="Annotated video"
-                fileName={
-                  session.annotatedVideoFileName || session.rawVideoFileName
-                }
-              />
-
-              <div className="pointer-events-none absolute top-3 left-3 rounded-lg bg-black/70 px-3 py-2 text-xs text-white backdrop-blur-sm">
-                <p>
-                  Attention:{" "}
-                  <span className="font-semibold text-[#4ADE80]">
-                    {session.attentionStatus}
-                  </span>
-                </p>
-                <p>EAR: {session.ear}</p>
-                <p>Blink: {session.blink}</p>
-                <p>Yaw: {session.yaw}</p>
-                <p>Pitch: {session.pitch}</p>
-              </div>
-            </div>
+            <SessionVideoPlayer
+              src={session.annotatedVideoUrl}
+              fallbackSrc={session.rawVideoUrl}
+              title="Annotated video"
+              fileName={
+                session.annotatedVideoFileName || session.rawVideoFileName
+              }
+            />
 
             {(session.annotatedVideoFileName ||
               session.rawVideoFileName ||
@@ -167,35 +185,74 @@ export default function LatestSessionPanel({ session }: LatestSessionPanelProps)
           <CardContent className="flex h-full flex-col">
             {speechAvailable ? (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-xl bg-slate-50 p-3">
-                    <p className="text-xs text-slate-500">Expected Word</p>
-                    <p className="mt-1 text-lg font-semibold text-slate-900">
-                      {session.expectedWord}
-                    </p>
+                {speechMatches.length > 0 ? (
+                  <div className="overflow-x-auto rounded-xl border border-slate-100">
+                    <table className="w-full min-w-[280px] text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-100 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                          <th className="px-3 py-2 font-medium">Expected</th>
+                          <th className="px-3 py-2 font-medium">Detected</th>
+                          <th className="px-3 py-2 font-medium">Confidence</th>
+                          <th className="px-3 py-2 font-medium">Response</th>
+                          <th className="px-3 py-2 font-medium">Timing</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {speechMatches.map((match) => (
+                          <tr
+                            key={match.expectedWord}
+                            className="border-b border-slate-100 last:border-b-0"
+                          >
+                            <td className="px-3 py-2.5 font-medium text-slate-900">
+                              {match.expectedWord}
+                            </td>
+                            <td className="px-3 py-2.5 text-[#0052CC]">
+                              {match.detectedWord ?? "—"}
+                            </td>
+                            <td className="px-3 py-2.5 text-slate-900">
+                              {match.confidence}%
+                            </td>
+                            <td className="px-3 py-2.5 text-slate-600">
+                              {match.responseTime}
+                            </td>
+                            <td className="px-3 py-2.5 text-slate-600">
+                              {match.inTimeWindow === true
+                                ? "On time"
+                                : match.inTimeWindow === false
+                                  ? "Late / early"
+                                  : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                  <div className="rounded-xl bg-[#E8F1FF] p-3">
-                    <p className="text-xs text-[#0052CC]">Detected</p>
-                    <p className="mt-1 text-lg font-semibold text-[#0052CC]">
-                      {session.detectedWord}
-                    </p>
-                  </div>
-                </div>
+                ) : (
+                  <p className="text-sm text-slate-600">
+                    No expected words were configured for this session.
+                  </p>
+                )}
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <p className="text-xs text-slate-500">Confidence</p>
-                    <p className="mt-1 text-xl font-bold text-slate-900">
-                      {session.confidence ?? 0}%
+                {speechOtherWords.length > 0 ? (
+                  <div className="rounded-xl bg-slate-50 p-3">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                      Other detected words
                     </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {speechOtherWords.map((item) => (
+                        <span
+                          key={item.word}
+                          className="rounded-full bg-white px-2.5 py-1 text-xs text-slate-700 ring-1 ring-slate-200"
+                        >
+                          {item.word}
+                          <span className="ml-1 text-slate-400">
+                            ({item.confidence}%)
+                          </span>
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs text-slate-500">Response Time</p>
-                    <p className="mt-1 text-xl font-bold text-slate-900">
-                      {session.responseTime}
-                    </p>
-                  </div>
-                </div>
+                ) : null}
               </div>
             ) : (
               <p className="text-sm leading-relaxed text-slate-600">
